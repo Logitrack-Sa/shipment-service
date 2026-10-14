@@ -5,7 +5,10 @@ Equipo: Alex, Gonzalo y Damian · Desarrollo y Arquitecturas Avanzadas de Softwa
 ## Supuestos y plan general
 
 Se asume Spring Boot (por `app.comisiones.*` y la expresión Cron), con Java y JPA. Si usan otro stack, adapten los detalles técnicos. Se propone un sprint de 2 semanas.
-
+## Horario de reunion:
+Viernes 10 AM
+## Horario de realizacion de Video para el Sprint:
+Sabado 16pm
 ## Reparto
 
 | Persona | Foco | Issues |
