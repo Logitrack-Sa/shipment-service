@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: shipment-service
+
+app:
+  limites:
+    extraccion-diaria:
+      titular: 100000.00
+      adherente: 70000.00
+  comisiones:
+    cuenta-corriente: 5000.00
+    caja-ahorro: 2000.00
+    cron: "0 0 0 1 * *"
+  activacion:
+    token-validez-horas: 24
