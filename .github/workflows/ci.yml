@@ -1,0 +1,53 @@
+name: Java y MySQL
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Maven verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: logitrack_test
+          MYSQL_USER: logitrack
+          MYSQL_PASSWORD: integration-only
+          MYSQL_ROOT_PASSWORD: integration-root-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Configurar Temurin 25 y caché Maven
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Compilar y ejecutar la suite
+        run: ./mvnw --batch-mode --no-transfer-progress clean verify
+      - name: Verificar alta, historial y rollback en MySQL
+        env:
+          SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/logitrack_test?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
+          SPRING_DATASOURCE_USERNAME: logitrack
+          SPRING_DATASOURCE_PASSWORD: integration-only
+        run: ./mvnw --batch-mode --no-transfer-progress -Dtest=ShipmentCreationIntegrationTest test
