@@ -48,3 +48,23 @@ usan `BigDecimal` para evitar errores binarios en el cálculo de tarifa.
 
 El documento `doc/Issue1.md` corresponde al ejemplo anterior; el alcance vigente
 está en las issues #12–#33 de GitHub.
+
+## Tarifa propuesta
+
+`pesoVolumetricoKg = largoCm * anchoCm * altoCm / divisor`
+
+`tarifa = base + max(pesoRealKg, pesoVolumetricoKg) * precioPorKg`
+
+La fórmula es una propuesta del equipo pendiente de confirmación del docente.
+Importes en pesos; peso en kg; medidas en cm. Se usa BigDecimal y se redondea
+solo el resultado final a dos decimales con HALF_UP.
+
+| Propiedad | Default | Variable de entorno |
+| --- | --- | --- |
+| `logitrack.fee.base` | `1000.00` | `FEE_BASE` |
+| `logitrack.fee.price-per-kg` | `250.00` | `FEE_PRICE_PER_KG` |
+| `logitrack.fee.volumetric-divisor` | `5000` | `FEE_VOLUMETRIC_DIVISOR` |
+
+Ejemplo: 2,5 kg y 30 × 20 × 40 cm tienen peso facturable de 4,8 kg y tarifa
+de 2200,00. Base y precio no negativos; divisor, peso y medidas positivos.
+Cambiar la configuración requiere reiniciar la aplicación.
