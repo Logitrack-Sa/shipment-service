@@ -1,5 +1,7 @@
 # LogiTrack · shipment-service
 
+[![CI](https://github.com/Logitrack-Sa/shipment-service/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Logitrack-Sa/shipment-service/actions/workflows/ci.yml)
+
 API de gestión de envíos. Java 25, Spring Boot 3.5 y Maven Wrapper.
 
 ## Desarrollo
@@ -15,6 +17,10 @@ La aplicación expone `/actuator/health`, `/swagger-ui.html` y `/v3/api-docs`.
 Hibernate valida el esquema; las migraciones de MySQL se entregan en #27.
 La configuración bancaria del ejemplo anterior se retiró del servicio de envíos.
 
+El Compose actual levanta solo MySQL 8.4: copiar `.env.example` a `.env`,
+elegir contraseñas locales y ejecutar `docker compose up -d mysql`.
+La imagen de la aplicación y el Compose completo se implementan en #26.
+
 ## Pruebas
 
 ```shell
@@ -24,6 +30,14 @@ La configuración bancaria del ejemplo anterior se retiró del servicio de enví
 Las pruebas unitarias no requieren red ni base de datos. El perfil `test` usa H2
 solo para contexto y persistencia; no reemplaza MySQL/Testcontainers de #30.
 JaCoCo genera `target/site/jacoco/index.html`.
+
+La CI ejecuta la suite con Temurin 25 y vuelve a probar alta, historial,
+colisiones y rollback contra un MySQL 8.4 efímero. También verifica health,
+Swagger y OpenAPI por HTTP. Ese smoke test crea el esquema únicamente en su
+base aislada; la validación de migraciones productivas sigue en #27/#30.
+
+La suite unitaria puede ejecutarse sin BD ni red, con las dependencias ya
+descargadas: `./mvnw -o -Dtest=ShipmentServiceTest,FeeCalculatorTest test`.
 
 ## Convenciones
 
