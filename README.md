@@ -83,6 +83,17 @@ Ejemplo: 2,5 kg y 30 × 20 × 40 cm tienen peso facturable de 4,8 kg y tarifa
 de 2200,00. Base y precio no negativos; divisor, peso y medidas positivos.
 Cambiar la configuración requiere reiniciar la aplicación.
 
+## Clientes
+
+| Método | Ruta | Resultado |
+| --- | --- | --- |
+| POST | `/api/v1/customers` | 201 Created con header `Location` y datos del cliente |
+| GET | `/api/v1/customers/{id}` | 200 OK con detalle por UUID o 404 Not Found |
+| GET | `/api/v1/customers?page=0&size=20` | 200 OK con página de clientes |
+
+La creación valida unicidad de `email` (409 Conflict o 400 Bad Request si los datos son 
+inválidos) y requiere `name` y `phone`. La lista paginada admite parámetros `page` y `size`.
+
 ## Envíos
 
 | Método | Ruta | Resultado |
