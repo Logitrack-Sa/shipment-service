@@ -13,7 +13,7 @@ API de gestión de envíos. Java 25, Spring Boot 3.5 y Maven Wrapper.
 
 La aplicación expone `/actuator/health`, `/swagger-ui.html` y `/v3/api-docs`.
 Hibernate valida el esquema; las migraciones de MySQL se entregan en #27.
-Los valores `app.*` del ejemplo anterior se conservan junto con sus pruebas.
+La configuración bancaria del ejemplo anterior se retiró del servicio de envíos.
 
 ## Pruebas
 
