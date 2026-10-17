@@ -1,7 +1,7 @@
-package com.logitrack.shipmentservice.config;
+package com.logitrack.shipment.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static com.logitrack.shipmentservice.config.BindFailureAssert.fallaArranquePorCampo;
+import static com.logitrack.shipment.config.BindFailureAssert.fallaArranquePorCampo;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

@@ -1,4 +1,4 @@
-package com.logitrack.shipmentservice;
+package com.logitrack.shipment;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
