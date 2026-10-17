@@ -1,4 +1,4 @@
-package com.logitrack.shipmentservice.config;
+package com.logitrack.shipment.config;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
