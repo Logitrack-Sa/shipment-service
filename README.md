@@ -68,3 +68,28 @@ solo el resultado final a dos decimales con HALF_UP.
 Ejemplo: 2,5 kg y 30 × 20 × 40 cm tienen peso facturable de 4,8 kg y tarifa
 de 2200,00. Base y precio no negativos; divisor, peso y medidas positivos.
 Cambiar la configuración requiere reiniciar la aplicación.
+
+## Envíos
+
+| Método | Ruta | Resultado |
+| --- | --- | --- |
+| POST | `/api/v1/shipments` | 201, Location y envío con tarifa e historial inicial |
+| GET | `/api/v1/shipments/{id}` | Detalle por UUID |
+| GET | `/api/v1/shipments/tracking/{trackingCode}` | Detalle por seguimiento |
+| GET | `/api/v1/shipments?status=PENDIENTE&page=0&size=20` | Página, con estado opcional |
+
+La paginación empieza en 0, admite entre 1 y 100 elementos y ordena por fecha
+de creación descendente y UUID. La respuesta contiene `content`, `page`, `size`,
+`totalElements` y `totalPages`. Los datos inválidos devuelven 400; un recurso
+inexistente, 404; un conflicto de persistencia, 409. Los errores incluyen
+`timestamp`, `status`, `error`, `code`, `message`, `path` y `details`.
+
+El tracking usa SecureRandom (`LT-` y diez caracteres alfanuméricos mayúsculos),
+preconsulta de existencia e índice único en BD. Cada intento de alta es una
+transacción independiente; se reintenta únicamente una colisión de tracking y
+se aborta después de cinco intentos. Envío e historial se confirman juntos.
+
+Las entidades básicas de cliente/repartidor, el contrato de errores y el
+recorder de historial permiten integrar los envíos. Las APIs de clientes y
+repartidores (#14/#15), los errores de estados (#17) y la consulta del historial
+(#21) continúan en sus issues correspondientes.
