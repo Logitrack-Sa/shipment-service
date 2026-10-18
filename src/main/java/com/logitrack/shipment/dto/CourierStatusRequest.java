@@ -1,4 +1,11 @@
 package com.logitrack.shipment.dto;
 
-public class CourierStatusRequest {
+import com.logitrack.shipment.entity.CourierStatus;
+import jakarta.validation.constraints.NotNull;
+
+public record CourierStatusRequest(
+
+    @NotNull
+    CourierStatus status
+) {
 }
