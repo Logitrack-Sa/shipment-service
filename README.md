@@ -117,6 +117,7 @@ mediante el estado del repartidor.
 | GET | `/api/v1/shipments/{id}` | Detalle por UUID |
 | GET | `/api/v1/shipments/tracking/{trackingCode}` | Detalle por seguimiento |
 | GET | `/api/v1/shipments?status=PENDIENTE&page=0&size=20` | Página, con estado opcional |
+| PUT | `/api/v1/shipments/{id}/courier` | Asignar o reasignar un repartidor activo a un envío en estado `PENDIENTE` | `200 OK` |
 
 La paginación empieza en 0, admite entre 1 y 100 elementos y ordena por fecha
 de creación descendente y UUID. La respuesta contiene `content`, `page`, `size`,
