@@ -1,103 +1,120 @@
-# shipment-service
+# LogiTrack · shipment-service
 
-Servicio Spring Boot (Java 17) del Trabajo Final - Sprint 1 (TP5). Implementa la lógica de
-negocio bancaria del caso de estudio: clientes, cuentas, extracciones, comisiones y activación.
+[![CI](https://github.com/Logitrack-Sa/shipment-service/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Logitrack-Sa/shipment-service/actions/workflows/ci.yml)
 
-## Configuración global de parámetros (Issue #1)
+API de gestión de envíos. Java 25, Spring Boot 3.5 y Maven Wrapper.
 
-Todos los parámetros globales del TP están centralizados en `src/main/resources/application.yaml`
-y expuestos mediante clases tipadas con `@ConfigurationProperties`. Ningún servicio de negocio
-debe repetir importes ni duraciones como constantes: inyectar las properties correspondientes.
+## Desarrollo
 
-### Propiedades
+1. Instalar JDK 25 y configurar `JAVA_HOME`.
+2. Abrir `pom.xml` en IntelliJ IDEA como proyecto Maven; seleccionar JDK 25.
+3. Configurar `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`
+   según `.env.example`. Spring no carga `.env` automáticamente: definir las
+   variables en la configuración de ejecución del IDE o en el entorno.
+4. Con MySQL disponible: `./mvnw spring-boot:run` (`.\mvnw.cmd` en Windows).
 
-| Propiedad | Tipo | Unidad | Default | Descripción |
-| --- | --- | --- | --- | --- |
-| `app.limites.extraccion-diaria.titular` | `BigDecimal` | pesos | `100000.00` | Tope diario de extracciones de un cliente titular |
-| `app.limites.extraccion-diaria.adherente` | `BigDecimal` | pesos | `70000.00` | Tope diario de extracciones de un adherente |
-| `app.comisiones.cuenta-corriente` | `BigDecimal` | pesos | `5000.00` | Comisión mensual de una cuenta corriente |
-| `app.comisiones.caja-ahorro` | `BigDecimal` | pesos | `2000.00` | Comisión mensual de una caja de ahorro |
-| `app.comisiones.cron` | `String` | expresión cron Spring (6 campos, zona `America/Argentina/Buenos_Aires`) | `0 0 0 1 * *` | Horario de la liquidación mensual de comisiones |
-| `app.activacion.token-validez-horas` | `Long` | horas | `24` | Validez del token de activación de cuenta |
+La aplicación expone `/actuator/health`, `/swagger-ui.html` y `/v3/api-docs`.
+Hibernate valida el esquema; las migraciones de MySQL se entregan en #27.
+La configuración bancaria del ejemplo anterior se retiró del servicio de envíos.
 
-Los importes usan `BigDecimal` (nunca `double`) y se validan al arranque: obligatorios,
-no nulos y `>= 0`. La vigencia del token debe ser positiva y el cron debe ser una expresión
-cron válida de Spring. Si falta o es inválida una propiedad obligatoria, **la aplicación no
-arranca** y el error de binding identifica el campo exacto.
+El Compose actual levanta solo MySQL 8.4: copiar `.env.example` a `.env`,
+elegir contraseñas locales y ejecutar `docker compose up -d mysql`.
+La imagen de la aplicación y el Compose completo se implementan en #26.
 
-### Clases tipadas
+## Pruebas
 
-| Clase | Prefijo | Consumidores previstos |
+```shell
+./mvnw verify
+```
+
+Las pruebas unitarias no requieren red ni base de datos. El perfil `test` usa H2
+solo para contexto y persistencia; no reemplaza MySQL/Testcontainers de #30.
+JaCoCo genera `target/site/jacoco/index.html`.
+
+La CI ejecuta la suite con Temurin 25 y vuelve a probar alta, historial,
+colisiones y rollback contra un MySQL 8.4 efímero. También verifica health,
+Swagger y OpenAPI por HTTP. Ese smoke test crea el esquema únicamente en su
+base aislada; la validación de migraciones productivas sigue en #27/#30.
+
+La suite unitaria puede ejecutarse sin BD ni red, con las dependencias ya
+descargadas: `./mvnw -o -Dtest=ShipmentServiceTest,FeeCalculatorTest test`.
+
+## Convenciones
+
+- Paquete raíz: `com.logitrack.shipment`. Capas: `controller`, `service`,
+  `repository`, `entity`, `dto`, `mapper`, `exception` y `config`.
+- Clases y paquetes en inglés; estados del negocio en español.
+- Endpoints bajo `/api/v1`, con sustantivos plurales.
+- DTOs inmutables, validación de entrada y mappers manuales breves. La API no
+  expone entidades JPA ni `Page` de Spring.
+- Inyección por constructor; transacciones en servicios; lecturas con
+  `readOnly = true`; dinero con `BigDecimal`.
+- Ramas `feature/<issue>-descripcion`, `chore/...`, `test/...` o `docs/...`.
+- Commits Conventional Commits breves, con descripción en español.
+- Cambios mediante PR con `Closes #N` y aprobación de otro integrante.
+  Nadie publica directamente en `main`.
+
+## Modelo y decisiones
+
+Las entidades usan UUID y auditoría compartida. `courier` es opcional hasta la
+asignación; los cambios de estado requieren historial persistido. Peso y medidas
+usan `BigDecimal` para evitar errores binarios en el cálculo de tarifa.
+
+El documento `doc/Issue1.md` corresponde al ejemplo anterior; el alcance vigente
+está en las issues #12–#33 de GitHub.
+
+## Tarifa propuesta
+
+`pesoVolumetricoKg = largoCm * anchoCm * altoCm / divisor`
+
+`tarifa = base + max(pesoRealKg, pesoVolumetricoKg) * precioPorKg`
+
+La fórmula es una propuesta del equipo pendiente de confirmación del docente.
+Importes en pesos; peso en kg; medidas en cm. Se usa BigDecimal y se redondea
+solo el resultado final a dos decimales con HALF_UP.
+
+| Propiedad | Default | Variable de entorno |
 | --- | --- | --- |
-| `LimitesProperties` | `app.limites` | Issue #4 - validación de tope diario de extracciones |
-| `ComisionesProperties` | `app.comisiones` | Issues #9 y #10 - cobro y liquidación de comisiones |
-| `ActivacionProperties` | `app.activacion` | Issue #5 - expiración del token de activación |
+| `logitrack.fee.base` | `1000.00` | `FEE_BASE` |
+| `logitrack.fee.price-per-kg` | `250.00` | `FEE_PRICE_PER_KG` |
+| `logitrack.fee.volumetric-divisor` | `5000` | `FEE_VOLUMETRIC_DIVISOR` |
 
-Ubicación: `com.logitrack.shipmentservice.config`. Registradas con `@ConfigurationPropertiesScan`
-en `ShipmentServiceApplication`.
+Ejemplo: 2,5 kg y 30 × 20 × 40 cm tienen peso facturable de 4,8 kg y tarifa
+de 2200,00. Base y precio no negativos; divisor, peso y medidas positivos.
+Cambiar la configuración requiere reiniciar la aplicación.
 
-### Sobrescritura de valores
+## Clientes
 
-Cualquier propiedad puede sobrescribirse sin tocar código, por orden de precedencia
-(mayor a menor):
+| Método | Ruta | Resultado |
+| --- | --- | --- |
+| POST | `/api/v1/customers` | 201 Created con header `Location` y datos del cliente |
+| GET | `/api/v1/customers/{id}` | 200 OK con detalle por UUID o 404 Not Found |
+| GET | `/api/v1/customers?page=0&size=20` | 200 OK con página de clientes |
 
-1. **Variables de entorno** (mayúsculas, `_` en lugar de `.` y `-`):
+La creación valida unicidad de `email` (409 Conflict o 400 Bad Request si los datos son 
+inválidos) y requiere `name` y `phone`. La lista paginada admite parámetros `page` y `size`.
 
-   ```bash
-   export APP_LIMITES_EXTRACCION_DIARIA_TITULAR=200000.00
-   export APP_COMISIONES_CRON="0 * * * * *"
-   export APP_ACTIVACION_TOKEN_VALIDEZ_HORAS=48
-   ```
+## Envíos
 
-2. **Argumentos de línea de comando:**
+| Método | Ruta | Resultado |
+| --- | --- | --- |
+| POST | `/api/v1/shipments` | 201, Location y envío con tarifa e historial inicial |
+| GET | `/api/v1/shipments/{id}` | Detalle por UUID |
+| GET | `/api/v1/shipments/tracking/{trackingCode}` | Detalle por seguimiento |
+| GET | `/api/v1/shipments?status=PENDIENTE&page=0&size=20` | Página, con estado opcional |
 
-   ```bash
-   ./mvnw spring-boot:run -Dspring-boot.run.arguments="--app.comisiones.caja-ahorro=3500.00"
-   ```
+La paginación empieza en 0, admite entre 1 y 100 elementos y ordena por fecha
+de creación descendente y UUID. La respuesta contiene `content`, `page`, `size`,
+`totalElements` y `totalPages`. Los datos inválidos devuelven 400; un recurso
+inexistente, 404; un conflicto de persistencia, 409. Los errores incluyen
+`timestamp`, `status`, `error`, `code`, `message`, `path` y `details`.
 
-3. **Perfiles de Spring** (por ejemplo `src/main/resources/application-dev.yaml`):
+El tracking usa SecureRandom (`LT-` y diez caracteres alfanuméricos mayúsculos),
+preconsulta de existencia e índice único en BD. Cada intento de alta es una
+transacción independiente; se reintenta únicamente una colisión de tracking y
+se aborta después de cinco intentos. Envío e historial se confirman juntos.
 
-   ```yaml
-   # application-dev.yaml - para desarrollo y pruebas
-   app:
-     comisiones:
-       cron: "0 * * * * *"   # liquidación cada minuto en vez de mensual
-     activacion:
-       token-validez-horas: 1
-   ```
-
-   ```bash
-   ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
-   ```
-
-4. **Edición directa de `application.yaml`** (requiere commit; sirve para cambios de defaults).
-
-### ¿Qué cambios requieren reiniciar la aplicación?
-
-Todas estas propiedades se leen **una sola vez, al arrancar** el contexto de Spring
-(binding de `@ConfigurationProperties`). Cualquier cambio -ya sea en `application.yaml`,
-en un perfil, en variables de entorno o en argumentos- requiere **reiniciar la
-aplicación** para surtir efecto. No hay refresh dinámico (no se usa Spring Cloud Config
-ni actuator `/refresh`).
-
-### Verificación
-
-Los tests de `src/test/java/com/logitrack/shipmentservice/config/` cubren:
-
-- Binding con los defaults de `application.yaml`.
-- Binding con valores sobrescritos.
-- Fallo de arranque ante propiedades ausentes o nulas.
-- Fallo de arranque ante importes negativos, vigencia de token `<= 0` y cron inválido.
-
-```bash
-./mvnw test -Dtest='LimitesPropertiesTest,ComisionesPropertiesTest,ActivacionPropertiesTest'
-```
-
-## Correr la aplicación
-
-```bash
-./mvnw spring-boot:run
-```
-
-Levanta MySQL vía Docker Compose (`compose.yaml`) automáticamente con
-`spring-boot-docker-compose`.
+Las entidades básicas de cliente/repartidor, el contrato de errores y el
+recorder de historial permiten integrar los envíos. Las APIs de clientes y
+repartidores (#14/#15), los errores de estados (#17) y la consulta del historial
+(#21) continúan en sus issues correspondientes.
