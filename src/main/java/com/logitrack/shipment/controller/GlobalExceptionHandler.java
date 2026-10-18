@@ -1,6 +1,8 @@
 package com.logitrack.shipment.controller;
 
 import com.logitrack.shipment.dto.ErrorResponse;
+import com.logitrack.shipment.exception.BusinessRuleException;
+import com.logitrack.shipment.exception.CourierNotActiveException;
 import com.logitrack.shipment.exception.DuplicateResourceException;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,6 +22,33 @@ import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(CourierNotActiveException.class)
+    ResponseEntity<ErrorResponse> courierNotActive(
+        CourierNotActiveException exception,
+        HttpServletRequest request) {
+        return error(
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "COURIER_NOT_ACTIVE",
+            exception.getMessage(),
+            request,
+            List.of()
+        );
+    }
+
+    @ExceptionHandler(BusinessRuleException.class)
+    ResponseEntity<ErrorResponse> businessRuleViolation(
+        BusinessRuleException exception,
+        HttpServletRequest request) {
+        return error(
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "BUSINESS_RULE_VIOLATION",
+            exception.getMessage(),
+            request,
+            List.of()
+        );
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     ResponseEntity<ErrorResponse> notFound(ResourceNotFoundException exception, HttpServletRequest request) {
         return error(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", exception.getMessage(), request, List.of());
