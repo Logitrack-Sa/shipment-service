@@ -83,6 +83,32 @@ Ejemplo: 2,5 kg y 30 × 20 × 40 cm tienen peso facturable de 4,8 kg y tarifa
 de 2200,00. Base y precio no negativos; divisor, peso y medidas positivos.
 Cambiar la configuración requiere reiniciar la aplicación.
 
+### Módulo de Repartidores (`Courier`)
+
+Se ha implementado el núcleo de gestión y ciclo de vida de los repartidores dentro del 
+microservicio `shipment-service`, siguiendo una arquitectura limpia y principios de 
+Clean Code.
+
+### Características Principales
+- **Entidad `Courier`**: Diseñada bajo un modelo de dominio rico que extiende de 
+`BaseEntity` (incluyendo ID de tipo UUID y campos de auditoría).
+- **Control de Estados**: Manejo de `CourierStatus` (`ACTIVO` por defecto, con 
+capacidad de cambio a `INACTIVO`).
+- **DTOs y Mapeo**: Separación estricta de responsabilidades mediante DTOs 
+específicos (`CourierRequest`, `CourierResponse`, `CourierStatusRequest`) 
+y un `CourierMapper`.
+- **Paginación y Filtrado**: Listado paginado con soporte para filtrado opcional 
+mediante el estado del repartidor.
+
+### Endpoints Disponibles
+
+| Método | Endpoint | Descripción | Código HTTP Exitoso |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/couriers` | Registrar un nuevo repartidor | `201 Created` (con cabecera Location) |
+| `GET` | `/api/v1/couriers` | Listar repartidores (permite filtrar con `?status=ACTIVO`) | `200 OK` (Paginado) |
+| `GET` | `/api/v1/couriers/{id}` | Obtener detalle de un repartidor por su UUID | `200 OK` |
+| `PATCH` | `/api/v1/couriers/{id}/status` | Actualizar estado operativo (activar/desactivar) | `200 OK` |
+
 ## Clientes
 
 | Método | Ruta | Resultado |
