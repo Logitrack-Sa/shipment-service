@@ -17,9 +17,11 @@ La aplicación expone `/actuator/health`, `/swagger-ui.html` y `/v3/api-docs`.
 Hibernate valida el esquema; las migraciones de MySQL se entregan en #27.
 La configuración bancaria del ejemplo anterior se retiró del servicio de envíos.
 
-El Compose actual levanta solo MySQL 8.4: copiar `.env.example` a `.env`,
-elegir contraseñas locales y ejecutar `docker compose up -d mysql`.
-La imagen de la aplicación y el Compose completo se implementan en #26.
+El Compose levanta MySQL 8.4 y la aplicación: copiar `.env.example` a `.env`,
+elegir contraseñas locales y ejecutar `docker compose up --build -d`.
+La API queda en `http://localhost:8080` y MySQL en el puerto local 3308.
+Este entorno de desarrollo crea y actualiza el esquema con Hibernate;
+las migraciones versionadas siguen pendientes en #27.
 
 ## Pruebas
 
@@ -31,10 +33,18 @@ Las pruebas unitarias no requieren red ni base de datos. El perfil `test` usa H2
 solo para contexto y persistencia; no reemplaza MySQL/Testcontainers de #30.
 JaCoCo genera `target/site/jacoco/index.html`.
 
-La CI ejecuta la suite con Temurin 25 y vuelve a probar alta, historial,
-colisiones y rollback contra un MySQL 8.4 efímero. También verifica health,
-Swagger y OpenAPI por HTTP. Ese smoke test crea el esquema únicamente en su
-base aislada; la validación de migraciones productivas sigue en #27/#30.
+En cada PR y cada push a `develop` o `main`, GitHub Actions ejecuta la suite
+completa con Temurin 25, primero con H2 y luego con MySQL 8.4. Si pasa,
+construye la imagen y levanta el Compose completo en un entorno descartable.
+Prueba por HTTP health, Swagger, OpenAPI, clientes, repartidores, registro y
+consulta de envíos, tarifa, asignación y errores 400/404/409/422.
+Los contenedores y volúmenes de CI se eliminan al finalizar, incluso si falla.
+También se puede iniciar la verificación desde **Actions → Java y MySQL → Run workflow**.
+
+Para repetir el flujo HTTP en un entorno local de pruebas: con el Compose
+disponible, ejecutar `python .github/scripts/smoke_test.py`. El script inserta
+datos de prueba; usar una base descartable. La validación de migraciones
+productivas sigue pendiente en #27/#30.
 
 La suite unitaria puede ejecutarse sin BD ni red, con las dependencias ya
 descargadas: `./mvnw -o -Dtest=ShipmentServiceTest,FeeCalculatorTest test`.
@@ -207,7 +217,5 @@ preconsulta de existencia e índice único en BD. Cada intento de alta es una
 transacción independiente; se reintenta únicamente una colisión de tracking y
 se aborta después de cinco intentos. Envío e historial se confirman juntos.
 
-Las entidades básicas de cliente/repartidor, el contrato de errores y el
-recorder de historial permiten integrar los envíos. Las APIs de clientes y
-repartidores (#14/#15), los errores de estados (#17) y la consulta del historial
-(#21) continúan en sus issues correspondientes.
+Las APIs de clientes y repartidores, la asignación y el contrato de errores
+están integrados. La consulta del historial (#21) continúa en su issue.
