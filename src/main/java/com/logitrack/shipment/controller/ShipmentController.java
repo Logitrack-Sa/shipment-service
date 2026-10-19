@@ -88,6 +88,13 @@ public class ShipmentController {
         return service.assignCourier(id, request.courierId());
     }
 
+    /**
+     * Cambia el estado de un envío aplicando la máquina de estados del dominio.
+     *
+     * @param id      UUID del envío
+     * @param request nuevo estado y observación opcional
+     * @return el envío actualizado
+     */
     @PatchMapping("/{id}/status")
     @Operation(
         summary = "Cambiar el estado de un envío",
@@ -198,6 +205,12 @@ public class ShipmentController {
         return service.changeStatus(id, request.status(), request.observation());
     }
 
+    /**
+     * Cancela un envío en estado {@code PENDIENTE} sin eliminarlo, conservando su trazabilidad.
+     *
+     * @param id UUID del envío a cancelar
+     * @return el envío en estado {@code CANCELADO}
+     */
     @PostMapping("/{id}/cancellation")
     @Operation(
         summary = "Cancelar un envío pendiente",

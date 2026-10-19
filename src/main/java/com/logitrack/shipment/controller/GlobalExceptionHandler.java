@@ -38,6 +38,14 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.CONFLICT, exception.code(), exception.getMessage(), request, List.of());
     }
 
+    /**
+     * Traduce una transición de estado inválida a una respuesta {@code 422 Unprocessable Entity}
+     * con el código {@code INVALID_STATE_TRANSITION}.
+     *
+     * @param exception excepción de transición inválida
+     * @param request   petición HTTP que originó el error
+     * @return respuesta de error estructurada
+     */
     @ExceptionHandler(InvalidStateTransitionException.class)
     public ResponseEntity<ErrorResponse> handleInvalidStateTransition(InvalidStateTransitionException exception,
             HttpServletRequest request) {

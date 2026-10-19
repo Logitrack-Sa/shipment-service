@@ -27,6 +27,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * Pruebas de la capa web para {@code PATCH /api/v1/shipments/{id}/status}: respuestas 200, 400,
+ * 404 y 422 según la transición y la validez de la solicitud.
+ */
 @WebMvcTest(ShipmentController.class)
 class ChangeStatusControllerTest {
 

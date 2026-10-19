@@ -32,6 +32,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+/**
+ * Pruebas unitarias de {@link ShipmentService#changeStatus} para el cambio de estado de envíos:
+ * transiciones válidas, registro en el historial, reglas de repartidor y rechazos sin efectos.
+ */
 @ExtendWith(MockitoExtension.class)
 class ChangeStatusTest {
 

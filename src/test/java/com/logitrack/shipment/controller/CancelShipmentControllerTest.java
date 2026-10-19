@@ -22,6 +22,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * Pruebas de la capa web para {@code POST /api/v1/shipments/{id}/cancellation}: respuestas 200,
+ * 400, 404 y 422 cuando el envío no está en estado {@code PENDIENTE}.
+ */
 @WebMvcTest(ShipmentController.class)
 class CancelShipmentControllerTest {
 

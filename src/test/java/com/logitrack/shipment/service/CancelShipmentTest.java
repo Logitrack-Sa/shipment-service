@@ -32,6 +32,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+/**
+ * Pruebas unitarias de {@link ShipmentService#cancel}: cancelación de envíos pendientes,
+ * conservación del repartidor y rechazos cuando el envío no está en {@code PENDIENTE}.
+ */
 @ExtendWith(MockitoExtension.class)
 class CancelShipmentTest {
 

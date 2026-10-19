@@ -10,8 +10,16 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * Verifica la máquina de estados de {@link ShipmentStatus}: las 16 combinaciones de la tabla
+ * de transiciones y la mutación de estado de {@link Shipment#changeStatusTo(ShipmentStatus)}.
+ */
 class ShipmentStatusTest {
 
+    /**
+     * Comprueba que {@link ShipmentStatus#canTransitionTo(ShipmentStatus)} coincide con la
+     * tabla de transiciones permitidas para cada par origen/destino.
+     */
     @ParameterizedTest
     @CsvSource({
             "PENDIENTE, PENDIENTE, false",
@@ -35,6 +43,11 @@ class ShipmentStatusTest {
         assertThat(from.canTransitionTo(to)).isEqualTo(allowed);
     }
 
+    /**
+     * Comprueba que {@link Shipment#changeStatusTo(ShipmentStatus)} muta el estado solo en
+     * transiciones permitidas y lanza {@link InvalidStateTransitionException} en las inválidas
+     * sin modificar el envío.
+     */
     @ParameterizedTest
     @CsvSource({
             "PENDIENTE, PENDIENTE, false",

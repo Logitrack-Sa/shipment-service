@@ -99,6 +99,14 @@ public class Shipment extends BaseEntity {
         );
     }
 
+    /**
+     * Cambia el estado del envío validando antes la transición contra la máquina de estados
+     * definida en {@link ShipmentStatus}.
+     *
+     * @param target estado destino del envío
+     * @throws NullPointerException            si {@code target} es {@code null}
+     * @throws InvalidStateTransitionException si la transición desde el estado actual no está permitida
+     */
     public void changeStatusTo(ShipmentStatus target) {
         Objects.requireNonNull(target, "El estado destino no puede ser nulo");
         if (!status.canTransitionTo(target)) {

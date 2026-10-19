@@ -5,6 +5,13 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+/**
+ * Solicitud para cambiar el estado de un envío mediante
+ * {@code PATCH /api/v1/shipments/{id}/status}.
+ *
+ * @param status      nuevo estado del envío; obligatorio
+ * @param observation observación opcional que se conserva en el historial de estados
+ */
 public record ChangeStatusRequest(
 
     @Schema(
