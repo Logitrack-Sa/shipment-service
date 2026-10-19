@@ -45,6 +45,9 @@ class ShipmentServiceTest {
     private TrackingCodeGenerator trackingCodes;
 
     @Mock
+    private ShipmentStatusRecorder statusRecorder;
+
+    @Mock
     private CourierRepository couriers;
 
     private ShipmentService service;
@@ -54,7 +57,7 @@ class ShipmentServiceTest {
         var mapper = new ShipmentMapper();
         var fees = new FeeCalculator(new BigDecimal("1000"), new BigDecimal("250"), new BigDecimal("5000"));
         var creator = new ShipmentCreator(customers, shipments, fees, mapper, recorder);
-        service = new ShipmentService(shipments, creator, trackingCodes, mapper, couriers);
+        service = new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusRecorder);
     }
 
     @Nested

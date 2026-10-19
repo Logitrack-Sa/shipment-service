@@ -8,7 +8,9 @@ import com.logitrack.shipment.entity.Shipment;
 import com.logitrack.shipment.entity.ShipmentStatus;
 import com.logitrack.shipment.exception.BusinessRuleException;
 import com.logitrack.shipment.exception.CourierNotActiveException;
+import com.logitrack.shipment.exception.CourierNotAssignedException;
 import com.logitrack.shipment.exception.DuplicateResourceException;
+import com.logitrack.shipment.exception.InvalidStateTransitionException;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
 import com.logitrack.shipment.mapper.ShipmentMapper;
 import com.logitrack.shipment.repository.CourierRepository;
@@ -30,6 +32,7 @@ public class ShipmentService {
     private final TrackingCodeGenerator trackingCodes;
     private final ShipmentMapper mapper;
     private final CourierRepository couriers;
+    private final ShipmentStatusRecorder statusRecorder;
 
 
     @Transactional
@@ -45,6 +48,31 @@ public class ShipmentService {
             throw new BusinessRuleException("Solo se puede asignar un repartidor a un envío pendiente");
         }
         shipment.assignCourier(courier);
+        return mapper.toResponse(shipment);
+    }
+
+    @Transactional
+    public ShipmentResponse changeStatus(UUID shipmentId, ShipmentStatus target, String observation) {
+        Shipment shipment = shipments.findById(shipmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Envío", shipmentId));
+        ShipmentStatus from = shipment.getStatus();
+
+        if (!from.canTransitionTo(target)) {
+            throw new InvalidStateTransitionException("Envío", from.name(), String.valueOf(target));
+        }
+
+        if (target == ShipmentStatus.EN_RUTA) {
+            Courier courier = shipment.getCourier();
+            if (courier == null) {
+                throw new CourierNotAssignedException(shipmentId);
+            }
+            if (!courier.isAvailable()) {
+                throw new CourierNotActiveException(courier.getId());
+            }
+        }
+
+        shipment.changeStatusTo(target);
+        statusRecorder.record(shipment, from, target, observation);
         return mapper.toResponse(shipment);
     }
     @Transactional(readOnly = true)

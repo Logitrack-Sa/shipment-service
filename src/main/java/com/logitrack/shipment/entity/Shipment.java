@@ -1,5 +1,6 @@
 package com.logitrack.shipment.entity;
 
+import com.logitrack.shipment.exception.InvalidStateTransitionException;
 import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Column;
@@ -96,5 +97,13 @@ public class Shipment extends BaseEntity {
             courier,
             "El repartidor no puede ser nulo"
         );
+    }
+
+    public void changeStatusTo(ShipmentStatus target) {
+        Objects.requireNonNull(target, "El estado destino no puede ser nulo");
+        if (!status.canTransitionTo(target)) {
+            throw new InvalidStateTransitionException("Envío", status.name(), target.name());
+        }
+        this.status = target;
     }
 }
