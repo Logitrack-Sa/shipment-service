@@ -17,9 +17,13 @@ La aplicación expone `/actuator/health`, `/swagger-ui.html` y `/v3/api-docs`.
 Hibernate valida el esquema; las migraciones de MySQL se entregan en #27.
 La configuración bancaria del ejemplo anterior se retiró del servicio de envíos.
 
-El Compose actual levanta solo MySQL 8.4: copiar `.env.example` a `.env`,
-elegir contraseñas locales y ejecutar `docker compose up -d mysql`.
-La imagen de la aplicación y el Compose completo se implementan en #26.
+El Compose levanta MySQL 8.4 y la aplicación: copiar `.env.example` a `.env`,
+elegir contraseñas locales y ejecutar `docker compose up --build -d`.
+La API queda en `http://localhost:8080` y MySQL en el puerto local `DB_PORT`
+(3308 si no está definido). El mismo valor sirve para conectarse desde el IDE.
+La conexión entre la aplicación y MySQL exige TLS (`sslMode=REQUIRED`).
+Este entorno de desarrollo crea y actualiza el esquema con Hibernate;
+las migraciones versionadas siguen pendientes en #27.
 
 ## Pruebas
 
@@ -31,10 +35,18 @@ Las pruebas unitarias no requieren red ni base de datos. El perfil `test` usa H2
 solo para contexto y persistencia; no reemplaza MySQL/Testcontainers de #30.
 JaCoCo genera `target/site/jacoco/index.html`.
 
-La CI ejecuta la suite con Temurin 25 y vuelve a probar alta, historial,
-colisiones y rollback contra un MySQL 8.4 efímero. También verifica health,
-Swagger y OpenAPI por HTTP. Ese smoke test crea el esquema únicamente en su
-base aislada; la validación de migraciones productivas sigue en #27/#30.
+En cada PR y cada push a `develop` o `main`, GitHub Actions ejecuta la suite
+completa con Temurin 25, primero con H2 y luego con MySQL 8.4. Si pasa,
+construye la imagen y levanta el Compose completo en un entorno descartable.
+Prueba por HTTP health, Swagger, OpenAPI, clientes, repartidores, registro y
+consulta de envíos, tarifa, asignación y errores 400/404/409/422.
+Los contenedores y volúmenes de CI se eliminan al finalizar, incluso si falla.
+También se puede iniciar la verificación desde **Actions → Java y MySQL → Run workflow**.
+
+Para repetir el flujo HTTP en un entorno local de pruebas: con el Compose
+disponible, ejecutar `python .github/scripts/smoke_test.py`. El script inserta
+datos de prueba; usar una base descartable. La validación de migraciones
+productivas sigue pendiente en #27/#30.
 
 La suite unitaria puede ejecutarse sin BD ni red, con las dependencias ya
 descargadas: `./mvnw -o -Dtest=ShipmentServiceTest,FeeCalculatorTest test`.
@@ -63,6 +75,28 @@ usan `BigDecimal` para evitar errores binarios en el cálculo de tarifa.
 El documento `doc/Issue1.md` corresponde al ejemplo anterior; el alcance vigente
 está en las issues #12–#33 de GitHub.
 
+## Documentación de la API (Swagger UI)
+
+El servicio cuenta con documentación interactiva basada en OpenAPI 3 (Springdoc). Con la aplicación en ejecución, puedes acceder a:
+
+- **Swagger UI**: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
+- **OpenAPI JSON**: `http://localhost:8080/v3/api-docs`
+
+## Ejecución con Docker y Docker Compose
+
+El servicio cuenta con un `Dockerfile` multi-stage optimizado (Java 25) y un archivo de configuración en `compose.yaml` para levantar la aplicación junto con su base de datos MySQL de forma completamente aislada.
+
+### Prerrequisitos
+- [Docker](https://www.docker.com/) y Docker Compose instalados.
+
+### Pasos para levantar el entorno
+
+1. Clona el repositorio y situarse en la carpeta del servicio:
+   `cd shipment-service`
+## Cómo probarlo
+2. Ejecutar el entorno completo con:
+   `docker compose up --build`
+
 ## Tarifa propuesta
 
 `pesoVolumetricoKg = largoCm * anchoCm * altoCm / divisor`
@@ -83,15 +117,32 @@ Ejemplo: 2,5 kg y 30 × 20 × 40 cm tienen peso facturable de 4,8 kg y tarifa
 de 2200,00. Base y precio no negativos; divisor, peso y medidas positivos.
 Cambiar la configuración requiere reiniciar la aplicación.
 
-## Clientes
+### Módulo de Repartidores (`Courier`)
 
-| Método | Ruta | Resultado |
-| --- | --- | --- |
-| POST | `/api/v1/customers` | 201 Created con header `Location` y datos del cliente |
-| GET | `/api/v1/customers/{id}` | 200 OK con detalle por UUID o 404 Not Found |
-| GET | `/api/v1/customers?page=0&size=20` | 200 OK con página de clientes |
+Se ha implementado el núcleo de gestión y ciclo de vida de los repartidores dentro del
+microservicio `shipment-service`, siguiendo una arquitectura limpia y principios de
+Clean Code.
 
-## Manejo global de excepciones (Issue #17)
+### Características Principales
+- **Entidad `Courier`**: Diseñada bajo un modelo de dominio rico que extiende de
+`BaseEntity` (incluyendo ID de tipo UUID y campos de auditoría).
+- **Control de Estados**: Manejo de `CourierStatus` (`ACTIVO` por defecto, con
+capacidad de cambio a `INACTIVO`).
+- **DTOs y Mapeo**: Separación estricta de responsabilidades mediante DTOs
+específicos (`CourierRequest`, `CourierResponse`, `CourierStatusRequest`)
+y un `CourierMapper`.
+- **Paginación y Filtrado**: Listado paginado con soporte para filtrado opcional
+mediante el estado del repartidor.
+
+### Endpoints Disponibles
+
+| Método | Endpoint | Descripción | Código HTTP Exitoso |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/couriers` | Registrar un nuevo repartidor | `201 Created` (con cabecera Location) |
+| `GET` | `/api/v1/couriers` | Listar repartidores (permite filtrar con `?status=ACTIVO`) | `200 OK` (Paginado) |
+| `GET` | `/api/v1/couriers/{id}` | Obtener detalle de un repartidor por su UUID | `200 OK` |
+| `PATCH` | `/api/v1/couriers/{id}/status` | Actualizar estado operativo (activar/desactivar) | `200 OK` |
+## Manejo de errores
 
 `GlobalExceptionHandler` (`@RestControllerAdvice`,
 `com.logitrack.shipment.controller`) traduce las excepciones de dominio y de
@@ -147,8 +198,6 @@ excepción correspondiente:
 ./mvnw test -Dtest=GlobalExceptionHandlerTest
 ```
 
-## Correr la aplicación
-
 ## Envíos
 
 | Método | Ruta | Resultado |
@@ -157,6 +206,7 @@ excepción correspondiente:
 | GET | `/api/v1/shipments/{id}` | Detalle por UUID |
 | GET | `/api/v1/shipments/tracking/{trackingCode}` | Detalle por seguimiento |
 | GET | `/api/v1/shipments?status=PENDIENTE&page=0&size=20` | Página, con estado opcional |
+| PUT | `/api/v1/shipments/{id}/courier` | Asignar o reasignar un repartidor activo a un envío en estado `PENDIENTE` | `200 OK` |
 
 La paginación empieza en 0, admite entre 1 y 100 elementos y ordena por fecha
 de creación descendente y UUID. La respuesta contiene `content`, `page`, `size`,
@@ -169,7 +219,5 @@ preconsulta de existencia e índice único en BD. Cada intento de alta es una
 transacción independiente; se reintenta únicamente una colisión de tracking y
 se aborta después de cinco intentos. Envío e historial se confirman juntos.
 
-Las entidades básicas de cliente/repartidor, el contrato de errores y el
-recorder de historial permiten integrar los envíos. Las APIs de clientes y
-repartidores (#14/#15), los errores de estados (#17) y la consulta del historial
-(#21) continúan en sus issues correspondientes.
+Las APIs de clientes y repartidores, la asignación y el contrato de errores
+están integrados. La consulta del historial (#21) continúa en su issue.

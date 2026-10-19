@@ -1,6 +1,7 @@
 name: Java y MySQL
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [main, develop]
@@ -45,9 +46,35 @@ jobs:
           cache: maven
       - name: Compilar y ejecutar la suite
         run: ./mvnw --batch-mode --no-transfer-progress clean verify
-      - name: Verificar alta, historial y rollback en MySQL
+      - name: Ejecutar toda la suite con MySQL
         env:
           SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/logitrack_test?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
           SPRING_DATASOURCE_USERNAME: logitrack
           SPRING_DATASOURCE_PASSWORD: integration-only
-        run: ./mvnw --batch-mode --no-transfer-progress -Dtest=ShipmentCreationIntegrationTest test
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+
+  docker-smoke:
+    name: Aplicación y MySQL en Docker
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DB_NAME: shipment_ci
+      DB_USER: shipment_ci
+      DB_PASSWORD: integration-only
+      DB_ROOT_PASSWORD: integration-root-only
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Construir y levantar el proyecto completo
+        run: docker compose up --build --detach
+      - name: Verificar el flujo HTTP completo
+        run: python3 .github/scripts/smoke_test.py
+      - name: Mostrar logs si hay errores
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+      - name: Eliminar contenedores y datos de prueba
+        if: always()
+        run: docker compose down --volumes --remove-orphans
