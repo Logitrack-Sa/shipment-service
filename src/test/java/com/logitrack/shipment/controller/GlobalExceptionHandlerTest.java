@@ -1,4 +1,4 @@
-package com.logitrack.shipmentservice.controller;
+package com.logitrack.shipment.controller;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -7,12 +7,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.logitrack.shipmentservice.exception.CourierNotActiveException;
-import com.logitrack.shipmentservice.exception.CourierNotAssignedException;
-import com.logitrack.shipmentservice.exception.DuplicateResourceException;
-import com.logitrack.shipmentservice.exception.InvalidStateTransitionException;
-import com.logitrack.shipmentservice.exception.ResourceNotFoundException;
-import com.logitrack.shipmentservice.exception.ShipmentCannotBeCancelledException;
+import com.logitrack.shipment.exception.CourierNotActiveException;
+import com.logitrack.shipment.exception.CourierNotAssignedException;
+import com.logitrack.shipment.exception.DuplicateResourceException;
+import com.logitrack.shipment.exception.InvalidStateTransitionException;
+import com.logitrack.shipment.exception.ResourceNotFoundException;
+import com.logitrack.shipment.exception.ShipmentCannotBeCancelledException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
@@ -37,7 +37,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@WebMvcTest
+@WebMvcTest(controllers = GlobalExceptionHandlerTest.ExplorarController.class)
 @Import(GlobalExceptionHandlerTest.ExplorarController.class)
 class GlobalExceptionHandlerTest {
 

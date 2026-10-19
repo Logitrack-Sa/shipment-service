@@ -130,6 +130,61 @@ mediante el estado del repartidor.
 | `GET` | `/api/v1/couriers` | Listar repartidores (permite filtrar con `?status=ACTIVO`) | `200 OK` (Paginado) |
 | `GET` | `/api/v1/couriers/{id}` | Obtener detalle de un repartidor por su UUID | `200 OK` |
 | `PATCH` | `/api/v1/couriers/{id}/status` | Actualizar estado operativo (activar/desactivar) | `200 OK` |
+## Manejo de errores
+
+`GlobalExceptionHandler` (`@RestControllerAdvice`,
+`com.logitrack.shipment.controller`) traduce las excepciones de dominio y de
+framework a respuestas HTTP con un único formato `ErrorResponse`
+(`com.logitrack.shipment.dto.ErrorResponse`):
+
+```json
+{
+  "timestamp": "2026-10-17T20:00:00Z",
+  "status": 422,
+  "error": "Unprocessable Entity",
+  "code": "INVALID_STATE_TRANSITION",
+  "message": "Transición de estado inválida para Shipment: PENDIENTE -> ENTREGADO",
+  "path": "/api/v1/shipments/11111111-2222-3333-4444-555555555555/estado",
+  "details": [
+    { "field": "estado", "message": "Valor inválido: ENTREGADO" }
+  ]
+}
+```
+
+`details` es **opcional**: solo aparece cuando hay violaciones de campos o parámetros
+(validación, tipo inválido, etc.). `code` es un identificador estable pensado para que
+los clientes reaccionen sin parsear el mensaje.
+
+### Tabla excepción → HTTP
+
+| Excepción | HTTP | `code` | `details` |
+| --- | --- | --- | --- |
+| `ResourceNotFoundException` | 404 | `RESOURCE_NOT_FOUND` | no |
+| `DuplicateResourceException` | 409 | `DUPLICATE_RESOURCE` | no |
+| `BusinessRuleException` (base) | 422 | `BUSINESS_RULE_VIOLATION` | no |
+| `InvalidStateTransitionException` | 422 | `INVALID_STATE_TRANSITION` | no |
+| `ShipmentCannotBeCancelledException` | 422 | `SHIPMENT_CANNOT_BE_CANCELLED` | no |
+| `CourierNotActiveException` | 422 | `COURIER_NOT_ACTIVE` | no |
+| `CourierNotAssignedException` | 422 | `COURIER_NOT_ASSIGNED` | no |
+| `MethodArgumentNotValidException` (`@Valid` en el body) | 400 | `VALIDATION_ERROR` | sí, por campo |
+| `ConstraintViolationException` (parámetros `@Validated`) | 400 | `CONSTRAINT_VIOLATION` | sí, por parámetro |
+| `HttpMessageNotReadableException` (JSON malformado / enum inválido) | 400 | `MALFORMED_REQUEST` | no |
+| `MethodArgumentTypeMismatchException` (UUID u otro tipo inválido) | 400 | `TYPE_MISMATCH` | sí, por parámetro |
+| `ObjectOptimisticLockingFailureException` (update concurrente) | 409 | `CONCURRENT_MODIFICATION` | no |
+| Cualquier otra `Exception` | 500 | `INTERNAL_SERVER_ERROR` | no |
+
+Las excepciones de dominio viven en `com.logitrack.shipment.exception` y todas
+extienden `DomainException`, que expone el `code()` que usa el handler. Las reglas de
+negocio parten de `BusinessRuleException` (422): las derivadas solo aportan su `code`
+y su mensaje. El handler 500 **no expone stacktrace ni detalles internos**: el error
+completo se registra con `log.error` y el cliente recibe un mensaje genérico.
+
+Los tests cubren cada fila de la tabla con un controller de prueba que lanza la
+excepción correspondiente:
+
+```bash
+./mvnw test -Dtest=GlobalExceptionHandlerTest
+```
 
 ## Envíos
 
