@@ -1,10 +1,16 @@
 package com.logitrack.shipment.service;
 
 import com.logitrack.shipment.dto.CreateShipmentRequest;
+import com.logitrack.shipment.entity.Courier;
+import com.logitrack.shipment.entity.CourierStatus;
 import com.logitrack.shipment.entity.Shipment;
 import com.logitrack.shipment.entity.ShipmentStatus;
+import com.logitrack.shipment.exception.CourierNotActiveException;
+import com.logitrack.shipment.exception.CourierNotAssignedException;
 import com.logitrack.shipment.exception.DuplicateResourceException;
+import com.logitrack.shipment.exception.InvalidStateTransitionException;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
+import com.logitrack.shipment.exception.ShipmentCannotBeCancelledException;
 import com.logitrack.shipment.mapper.ShipmentMapper;
 import com.logitrack.shipment.repository.CourierRepository;
 import com.logitrack.shipment.repository.CustomerRepository;
@@ -16,7 +22,10 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -27,6 +36,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Stream;
 
 import static com.logitrack.shipment.support.ShipmentFixtures.*;
 import static org.assertj.core.api.Assertions.*;
@@ -220,6 +231,234 @@ class ShipmentServiceTest {
 
             assertThat(service.findAll(null, pageable).content()).isEmpty();
             verify(shipments, never()).findByStatus(any(), any());
+        }
+    }
+
+    /**
+     * Cobertura de la máquina de estados y de la cancelación de envíos: matriz completa de
+     * transiciones, reglas de repartidor, estados terminales e invocación del historial.
+     */
+    @Nested
+    class StatusMachine {
+
+        /** Observación usada en los cambios de estado dentro de esta suite. */
+        private static final String OBSERVATION = "Cambio de estado";
+
+        /** Observación que {@link ShipmentService#cancel} registra por defecto en el historial. */
+        private static final String CANCELLATION = "Cancelación del envío";
+
+        /**
+         * Recorre las 16 combinaciones origen/destino: las transiciones válidas cambian el
+         * estado y registran el historial; las inválidas lanzan
+         * {@link InvalidStateTransitionException}, sin tocar el envío ni el historial.
+         */
+        @ParameterizedTest(name = "{0} -> {1} (permitida: {2})")
+        @MethodSource("transitions")
+        void validatesEveryTransition(ShipmentStatus from, ShipmentStatus to, boolean allowed) {
+            Shipment shipment = persistedShipment(from);
+            if (allowed && to == ShipmentStatus.EN_RUTA) {
+                shipment.assignCourier(activeCourier());
+            }
+
+            if (allowed) {
+                var response = service.changeStatus(SHIPMENT_ID, to, OBSERVATION);
+
+                assertThat(response.status()).isEqualTo(to);
+                assertThat(shipment.getStatus()).isEqualTo(to);
+                verify(statusRecorder).record(shipment, from, to, OBSERVATION);
+            } else {
+                assertThatThrownBy(() -> service.changeStatus(SHIPMENT_ID, to, OBSERVATION))
+                        .isInstanceOf(InvalidStateTransitionException.class);
+
+                assertThat(shipment.getStatus()).isEqualTo(from);
+                verifyNoInteractions(statusRecorder);
+            }
+        }
+
+        /**
+         * Pasar a {@code EN_RUTA} desde {@code PENDIENTE} sin repartidor asignado debe fallar
+         * con {@link CourierNotAssignedException} y no dejar rastro en el historial.
+         */
+        @Test
+        void rejectsEnRouteWithoutAssignedCourier() {
+            Shipment shipment = persistedShipment(ShipmentStatus.PENDIENTE);
+
+            assertThatThrownBy(() -> service.changeStatus(SHIPMENT_ID, ShipmentStatus.EN_RUTA, null))
+                    .isInstanceOf(CourierNotAssignedException.class);
+
+            assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.PENDIENTE);
+            verifyNoInteractions(statusRecorder);
+        }
+
+        /**
+         * Pasar a {@code EN_RUTA} con un repartidor asignado pero {@code INACTIVO} debe fallar
+         * con {@link CourierNotActiveException} y no registrar historial.
+         */
+        @Test
+        void rejectsEnRouteWithInactiveCourier() {
+            Shipment shipment = persistedShipment(ShipmentStatus.PENDIENTE);
+            Courier courier = activeCourier();
+            courier.changeStatus(CourierStatus.INACTIVO);
+            shipment.assignCourier(courier);
+
+            assertThatThrownBy(() -> service.changeStatus(SHIPMENT_ID, ShipmentStatus.EN_RUTA, null))
+                    .isInstanceOf(CourierNotActiveException.class);
+
+            assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.PENDIENTE);
+            verifyNoInteractions(statusRecorder);
+        }
+
+        /**
+         * Pasar a {@code EN_RUTA} con un repartidor {@code ACTIVO} es válido: cambia el estado y
+         * registra el historial.
+         */
+        @Test
+        void acceptsEnRouteWithActiveCourier() {
+            Shipment shipment = persistedShipment(ShipmentStatus.PENDIENTE);
+            shipment.assignCourier(activeCourier());
+
+            var response = service.changeStatus(SHIPMENT_ID, ShipmentStatus.EN_RUTA, null);
+
+            assertThat(response.status()).isEqualTo(ShipmentStatus.EN_RUTA);
+            verify(statusRecorder).record(shipment, ShipmentStatus.PENDIENTE, ShipmentStatus.EN_RUTA, null);
+        }
+
+        /**
+         * Solo la cancelación desde {@code PENDIENTE} es válida; desde cualquier otro estado
+         * lanza {@link ShipmentCannotBeCancelledException} sin registrar historial.
+         */
+        @ParameterizedTest(name = "cancelar desde {0}")
+        @EnumSource(ShipmentStatus.class)
+        void cancelsOnlyPendingShipments(ShipmentStatus status) {
+            Shipment shipment = persistedShipment(status);
+
+            if (status == ShipmentStatus.PENDIENTE) {
+                var response = service.cancel(SHIPMENT_ID);
+
+                assertThat(response.status()).isEqualTo(ShipmentStatus.CANCELADO);
+                verify(statusRecorder).record(shipment, ShipmentStatus.PENDIENTE,
+                        ShipmentStatus.CANCELADO, CANCELLATION);
+            } else {
+                assertThatThrownBy(() -> service.cancel(SHIPMENT_ID))
+                        .isInstanceOf(ShipmentCannotBeCancelledException.class);
+
+                assertThat(shipment.getStatus()).isEqualTo(status);
+                verifyNoInteractions(statusRecorder);
+            }
+        }
+
+        /**
+         * Los estados terminales ({@code ENTREGADO} y {@code CANCELADO}) no admiten ninguna
+         * transición: todos los destinos posibles lanzan {@link InvalidStateTransitionException}.
+         */
+        @ParameterizedTest
+        @EnumSource(value = ShipmentStatus.class, names = {"ENTREGADO", "CANCELADO"})
+        void terminalStatesDoNotAdmitAnyTransition(ShipmentStatus terminal) {
+            Shipment shipment = persistedShipment(terminal);
+
+            for (ShipmentStatus target : ShipmentStatus.values()) {
+                assertThatThrownBy(() -> service.changeStatus(SHIPMENT_ID, target, null))
+                        .isInstanceOf(InvalidStateTransitionException.class);
+            }
+
+            assertThat(shipment.getStatus()).isEqualTo(terminal);
+            verifyNoInteractions(statusRecorder);
+        }
+
+        /**
+         * Un cambio rechazado no persiste el envío: el estado en memoria queda intacto y nunca se
+         * invocan las operaciones de guardado del repositorio.
+         */
+        @Test
+        void rejectedChangeDoesNotPersistTheShipment() {
+            Shipment shipment = persistedShipment(ShipmentStatus.ENTREGADO);
+
+            assertThatThrownBy(() -> service.changeStatus(SHIPMENT_ID, ShipmentStatus.CANCELADO, null))
+                    .isInstanceOf(InvalidStateTransitionException.class);
+
+            assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.ENTREGADO);
+            verify(shipments, never()).save(any());
+            verify(shipments, never()).saveAndFlush(any());
+            verifyNoInteractions(statusRecorder);
+        }
+
+        /**
+         * Cancelar un envío conserva el repartidor previamente asignado, tanto en el envío como
+         * en la respuesta devuelta.
+         */
+        @Test
+        void cancellationKeepsTheAssignedCourier() {
+            Shipment shipment = persistedShipment(ShipmentStatus.PENDIENTE);
+            Courier courier = activeCourier();
+            ReflectionTestUtils.setField(courier, "id", UUID.randomUUID());
+            shipment.assignCourier(courier);
+
+            var response = service.cancel(SHIPMENT_ID);
+
+            assertThat(response.courierId()).isEqualTo(courier.getId());
+            assertThat(shipment.getCourier()).isSameAs(courier);
+        }
+
+        /**
+         * Un envío inexistente lanza {@link ResourceNotFoundException} sin registrar historial.
+         */
+        @Test
+        void rejectsUnknownShipmentWithoutRecording() {
+            when(shipments.findById(SHIPMENT_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.changeStatus(SHIPMENT_ID, ShipmentStatus.CANCELADO, null))
+                    .isInstanceOf(ResourceNotFoundException.class);
+
+            verifyNoInteractions(statusRecorder);
+        }
+
+        /**
+         * Genera las 16 combinaciones de estados origen/destino junto con si la transición está
+         * permitida, para alimentar al test parametrizado de la matriz.
+         *
+         * @return flujo con los 16 casos de la tabla de transiciones
+         */
+        private static Stream<Arguments> transitions() {
+            return Stream.of(ShipmentStatus.values())
+                    .flatMap(from -> Stream.of(ShipmentStatus.values())
+                            .map(to -> Arguments.of(from, to, transitionAllowed(from, to))));
+        }
+
+        /**
+         * Define la tabla de transiciones permitidas de la máquina de estados.
+         *
+         * @param from estado de origen
+         * @param to   estado de destino
+         * @return {@code true} si la transición está permitida
+         */
+        private static boolean transitionAllowed(ShipmentStatus from, ShipmentStatus to) {
+            return switch (from) {
+                case PENDIENTE -> to == ShipmentStatus.EN_RUTA || to == ShipmentStatus.CANCELADO;
+                case EN_RUTA -> to == ShipmentStatus.ENTREGADO;
+                default -> false;
+            };
+        }
+
+        /**
+         * Crea un envío con el estado indicado y lo deja disponible desde el repositorio simulado.
+         *
+         * @param status estado inicial del envío
+         * @return el envío creado con ese estado
+         */
+        private Shipment persistedShipment(ShipmentStatus status) {
+            Shipment shipment = ShipmentEntities.shipment();
+            ReflectionTestUtils.setField(shipment, "status", status);
+            when(shipments.findById(SHIPMENT_ID)).thenReturn(Optional.of(shipment));
+            return shipment;
+        }
+
+        /**
+         * Crea un repartidor activo (estado por defecto {@code ACTIVO}).
+         *
+         * @return repartidor listo para asignar
+         */
+        private Courier activeCourier() {
+            return new Courier("Ana", "Moto");
         }
     }
 }
