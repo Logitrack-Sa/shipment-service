@@ -1,6 +1,7 @@
 package com.logitrack.shipment.entity;
 
 import com.logitrack.shipment.config.JpaAuditingConfig;
+import com.logitrack.testfixtures.AuditSample;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityManager;
@@ -9,6 +10,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
@@ -20,6 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DataJpaTest
 @Import(JpaAuditingConfig.class)
 @ActiveProfiles("test")
+@EntityScan(basePackages = {
+    "com.logitrack.shipment.entity",
+    "com.logitrack.testfixtures"
+})
 class BaseEntityTest {
     @Autowired
     private EntityManager entityManager;
@@ -39,9 +45,8 @@ class BaseEntityTest {
 
         var createdAt = sample.getCreatedAt();
         var updatedAt = sample.getUpdatedAt();
-        sample.name = "modified";
+        sample.rename("modified");
         entityManager.flush();
-
         assertThat(sample.getCreatedAt()).isEqualTo(createdAt);
         assertThat(sample.getUpdatedAt()).isAfter(updatedAt);
         assertThat(sample.getVersion()).isEqualTo(1L);
@@ -66,14 +71,4 @@ class BaseEntityTest {
     }
 }
 
-@Entity
-@Table(name = "audit_samples")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-class AuditSample extends BaseEntity {
-    @Column(nullable = false)
-    String name;
 
-    AuditSample(String name) {
-        this.name = name;
-    }
-}
