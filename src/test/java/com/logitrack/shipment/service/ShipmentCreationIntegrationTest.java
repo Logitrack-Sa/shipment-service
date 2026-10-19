@@ -58,7 +58,12 @@ class ShipmentCreationIntegrationTest {
         var api = http.getForEntity("/v3/api-docs", String.class);
         assertThat(api.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(api.getBody()).contains("/api/v1/shipments", "/api/v1/shipments/{id}");
-        assertThat(http.getForEntity("/swagger-ui.html", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+        var documentation = http.getForEntity("/swagger-ui.html", String.class);
+        assertThat(documentation.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(documentation.getBody()).contains("LogiTrack Docs", "/docs/app.js");
+        assertThat(http.getForEntity("/docs/", String.class).getBody()).contains("LogiTrack Docs");
+        assertThat(http.getForEntity("/docs/explorer.html", String.class).getBody()).contains("swagger-ui-bundle.js");
+        assertThat(http.getForEntity("/swagger-ui/swagger-ui-bundle.js", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test

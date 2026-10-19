@@ -45,7 +45,11 @@ def main():
     assert all(path in paths for path in (
         "/api/v1/customers", "/api/v1/couriers", "/api/v1/shipments",
         "/api/v1/shipments/{id}/courier"))
-    assert "html" in request("/swagger-ui.html").lower()
+    assert "LogiTrack Docs" in request("/swagger-ui.html")
+    assert "LogiTrack Docs" in request("/docs/")
+    assert "swagger-ui-bundle.js" in request("/docs/explorer.html")
+    request("/docs/app.js")
+    request("/docs/styles.css")
 
     customer_data = {"name": "Cliente CI", "email": f"ci-{uuid.uuid4()}@example.com",
                      "phone": "+5493881234567"}

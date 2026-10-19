@@ -75,12 +75,22 @@ usan `BigDecimal` para evitar errores binarios en el cálculo de tarifa.
 El documento `doc/Issue1.md` corresponde al ejemplo anterior; el alcance vigente
 está en las issues #12–#33 de GitHub.
 
-## Documentación de la API (Swagger UI)
+## Documentación de la API
 
 El servicio cuenta con documentación interactiva basada en OpenAPI 3 (Springdoc). Con la aplicación en ejecución, puedes acceder a:
 
-- **Swagger UI**: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
+- **LogiTrack Docs**: [http://localhost:8080/docs/](http://localhost:8080/docs/). También disponible en `/swagger-ui.html` y `/swagger-ui/index.html`.
+- **Explorador Swagger**: [http://localhost:8080/docs/explorer.html](http://localhost:8080/docs/explorer.html)
 - **OpenAPI JSON**: `http://localhost:8080/v3/api-docs`
+
+El portal organiza clientes, repartidores y envíos con búsqueda, modelos, errores
+y un flujo de integración. Lee los parámetros y esquemas desde OpenAPI y permite
+editar solicitudes y consultar sus respuestas reales. Las operaciones que crean
+o modifican datos se ejecutan únicamente al pulsar **Enviar solicitud**.
+
+Los recursos están en `src/main/resources/static/docs`, sin compilación frontend
+ni servicios externos. Si cambias el puerto del servicio, usa ese mismo puerto
+en las URLs anteriores.
 
 ## Ejecución con Docker y Docker Compose
 
