@@ -22,7 +22,8 @@ def request(path, method="GET", data=None, status=200):
     with response:
         text = response.read().decode()
         assert response.status == status, f"{method} {path}: {response.status}, {text}"
-        if "application/json" in response.headers.get("Content-Type", ""):
+        media_type = response.headers.get("Content-Type", "").split(";")[0]
+        if media_type == "application/json" or media_type.endswith("+json"):
             return json.loads(text)
         return text
 
