@@ -1,7 +1,10 @@
 package com.logitrack.shipment.exception;
 
-public class DuplicateResourceException extends RuntimeException {
+public class DuplicateResourceException extends DomainException {
+
+    public static final String CODE = "DUPLICATE_RESOURCE";
+
     public DuplicateResourceException(String message) {
-        super(message);
+        super(CODE, message);
     }
 }

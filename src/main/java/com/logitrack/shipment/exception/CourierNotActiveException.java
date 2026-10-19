@@ -1,4 +1,4 @@
-package com.logitrack.shipmentservice.exception;
+package com.logitrack.shipment.exception;
 
 public class CourierNotActiveException extends BusinessRuleException {
 

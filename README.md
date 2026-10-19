@@ -94,9 +94,9 @@ Cambiar la configuración requiere reiniciar la aplicación.
 ## Manejo global de excepciones (Issue #17)
 
 `GlobalExceptionHandler` (`@RestControllerAdvice`,
-`com.logitrack.shipmentservice.controller`) traduce las excepciones de dominio y de
+`com.logitrack.shipment.controller`) traduce las excepciones de dominio y de
 framework a respuestas HTTP con un único formato `ErrorResponse`
-(`com.logitrack.shipmentservice.dto.ErrorResponse`):
+(`com.logitrack.shipment.dto.ErrorResponse`):
 
 ```json
 {
@@ -134,7 +134,7 @@ los clientes reaccionen sin parsear el mensaje.
 | `ObjectOptimisticLockingFailureException` (update concurrente) | 409 | `CONCURRENT_MODIFICATION` | no |
 | Cualquier otra `Exception` | 500 | `INTERNAL_SERVER_ERROR` | no |
 
-Las excepciones de dominio viven en `com.logitrack.shipmentservice.exception` y todas
+Las excepciones de dominio viven en `com.logitrack.shipment.exception` y todas
 extienden `DomainException`, que expone el `code()` que usa el handler. Las reglas de
 negocio parten de `BusinessRuleException` (422): las derivadas solo aportan su `code`
 y su mensaje. El handler 500 **no expone stacktrace ni detalles internos**: el error
