@@ -241,8 +241,10 @@ class ShipmentServiceTest {
     @Nested
     class StatusMachine {
 
+        /** Observación usada en los cambios de estado dentro de esta suite. */
         private static final String OBSERVATION = "Cambio de estado";
 
+        /** Observación que {@link ShipmentService#cancel} registra por defecto en el historial. */
         private static final String CANCELLATION = "Cancelación del envío";
 
         /**
@@ -273,6 +275,10 @@ class ShipmentServiceTest {
             }
         }
 
+        /**
+         * Pasar a {@code EN_RUTA} desde {@code PENDIENTE} sin repartidor asignado debe fallar
+         * con {@link CourierNotAssignedException} y no dejar rastro en el historial.
+         */
         @Test
         void rejectsEnRouteWithoutAssignedCourier() {
             Shipment shipment = persistedShipment(ShipmentStatus.PENDIENTE);
@@ -284,6 +290,10 @@ class ShipmentServiceTest {
             verifyNoInteractions(statusRecorder);
         }
 
+        /**
+         * Pasar a {@code EN_RUTA} con un repartidor asignado pero {@code INACTIVO} debe fallar
+         * con {@link CourierNotActiveException} y no registrar historial.
+         */
         @Test
         void rejectsEnRouteWithInactiveCourier() {
             Shipment shipment = persistedShipment(ShipmentStatus.PENDIENTE);
@@ -298,6 +308,10 @@ class ShipmentServiceTest {
             verifyNoInteractions(statusRecorder);
         }
 
+        /**
+         * Pasar a {@code EN_RUTA} con un repartidor {@code ACTIVO} es válido: cambia el estado y
+         * registra el historial.
+         */
         @Test
         void acceptsEnRouteWithActiveCourier() {
             Shipment shipment = persistedShipment(ShipmentStatus.PENDIENTE);
@@ -333,6 +347,10 @@ class ShipmentServiceTest {
             }
         }
 
+        /**
+         * Los estados terminales ({@code ENTREGADO} y {@code CANCELADO}) no admiten ninguna
+         * transición: todos los destinos posibles lanzan {@link InvalidStateTransitionException}.
+         */
         @ParameterizedTest
         @EnumSource(value = ShipmentStatus.class, names = {"ENTREGADO", "CANCELADO"})
         void terminalStatesDoNotAdmitAnyTransition(ShipmentStatus terminal) {
@@ -347,6 +365,10 @@ class ShipmentServiceTest {
             verifyNoInteractions(statusRecorder);
         }
 
+        /**
+         * Un cambio rechazado no persiste el envío: el estado en memoria queda intacto y nunca se
+         * invocan las operaciones de guardado del repositorio.
+         */
         @Test
         void rejectedChangeDoesNotPersistTheShipment() {
             Shipment shipment = persistedShipment(ShipmentStatus.ENTREGADO);
@@ -360,6 +382,10 @@ class ShipmentServiceTest {
             verifyNoInteractions(statusRecorder);
         }
 
+        /**
+         * Cancelar un envío conserva el repartidor previamente asignado, tanto en el envío como
+         * en la respuesta devuelta.
+         */
         @Test
         void cancellationKeepsTheAssignedCourier() {
             Shipment shipment = persistedShipment(ShipmentStatus.PENDIENTE);
@@ -373,6 +399,9 @@ class ShipmentServiceTest {
             assertThat(shipment.getCourier()).isSameAs(courier);
         }
 
+        /**
+         * Un envío inexistente lanza {@link ResourceNotFoundException} sin registrar historial.
+         */
         @Test
         void rejectsUnknownShipmentWithoutRecording() {
             when(shipments.findById(SHIPMENT_ID)).thenReturn(Optional.empty());
@@ -383,12 +412,25 @@ class ShipmentServiceTest {
             verifyNoInteractions(statusRecorder);
         }
 
+        /**
+         * Genera las 16 combinaciones de estados origen/destino junto con si la transición está
+         * permitida, para alimentar al test parametrizado de la matriz.
+         *
+         * @return flujo con los 16 casos de la tabla de transiciones
+         */
         private static Stream<Arguments> transitions() {
             return Stream.of(ShipmentStatus.values())
                     .flatMap(from -> Stream.of(ShipmentStatus.values())
                             .map(to -> Arguments.of(from, to, transitionAllowed(from, to))));
         }
 
+        /**
+         * Define la tabla de transiciones permitidas de la máquina de estados.
+         *
+         * @param from estado de origen
+         * @param to   estado de destino
+         * @return {@code true} si la transición está permitida
+         */
         private static boolean transitionAllowed(ShipmentStatus from, ShipmentStatus to) {
             return switch (from) {
                 case PENDIENTE -> to == ShipmentStatus.EN_RUTA || to == ShipmentStatus.CANCELADO;
@@ -397,6 +439,12 @@ class ShipmentServiceTest {
             };
         }
 
+        /**
+         * Crea un envío con el estado indicado y lo deja disponible desde el repositorio simulado.
+         *
+         * @param status estado inicial del envío
+         * @return el envío creado con ese estado
+         */
         private Shipment persistedShipment(ShipmentStatus status) {
             Shipment shipment = ShipmentEntities.shipment();
             ReflectionTestUtils.setField(shipment, "status", status);
@@ -404,6 +452,11 @@ class ShipmentServiceTest {
             return shipment;
         }
 
+        /**
+         * Crea un repartidor activo (estado por defecto {@code ACTIVO}).
+         *
+         * @return repartidor listo para asignar
+         */
         private Courier activeCourier() {
             return new Courier("Ana", "Moto");
         }
