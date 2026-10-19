@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Import(JpaAuditingConfig.class)
 @ActiveProfiles("test")
-class ShipmentRepositoryTest {
+class ShipmentRepositoryTest extends AbstractMySqlRepositoryTest {
     @Autowired
     private ShipmentRepository repository;
     @Autowired
