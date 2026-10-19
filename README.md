@@ -197,6 +197,16 @@ excepción correspondiente:
 ```bash
 ./mvnw test -Dtest=GlobalExceptionHandlerTest
 ```
+## Pruebas de Integración (Testcontainers)
+
+Este servicio utiliza **Testcontainers** junto con **MySQL 8.4** y `@DataJpaTest` para garantizar que las pruebas de los repositorios corran contra un motor de base de datos real e idéntico al de producción, sin depender de instancias externas instaladas manualmente.
+
+### Requisitos previos
+- Tener **Docker Desktop** (o un daemon de Docker compatible) corriendo en tu máquina local.
+
+### Ejecución de pruebas
+Para ejecutar la suite completa de pruebas de integración mediante Maven:
+    `./mvnw test`
 
 ## Envíos
 
