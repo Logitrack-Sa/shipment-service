@@ -45,6 +45,9 @@ public class AssignCourierTest {
     @Mock
     private TrackingCodeGenerator trackingCodes;
 
+    @Mock
+    private ShipmentStatusRecorder statusRecorder;
+
     @InjectMocks
     private ShipmentService service;
 

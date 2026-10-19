@@ -4,6 +4,7 @@ import com.logitrack.shipment.dto.ErrorResponse;
 import com.logitrack.shipment.dto.ErrorResponse.FieldViolation;
 import com.logitrack.shipment.exception.BusinessRuleException;
 import com.logitrack.shipment.exception.DuplicateResourceException;
+import com.logitrack.shipment.exception.InvalidStateTransitionException;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -35,6 +36,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleDuplicateResource(DuplicateResourceException exception,
             HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, exception.code(), exception.getMessage(), request, List.of());
+    }
+
+    /**
+     * Traduce una transición de estado inválida a una respuesta {@code 422 Unprocessable Entity}
+     * con el código {@code INVALID_STATE_TRANSITION}.
+     *
+     * @param exception excepción de transición inválida
+     * @param request   petición HTTP que originó el error
+     * @return respuesta de error estructurada
+     */
+    @ExceptionHandler(InvalidStateTransitionException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidStateTransition(InvalidStateTransitionException exception,
+            HttpServletRequest request) {
+        return error(HttpStatus.UNPROCESSABLE_ENTITY, exception.code(), exception.getMessage(), request, List.of());
     }
 
     @ExceptionHandler(BusinessRuleException.class)
