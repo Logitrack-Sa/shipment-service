@@ -19,6 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 
 @Getter
 @Entity
@@ -88,5 +89,12 @@ public class Shipment extends BaseEntity {
         this.heightCm = heightCm;
         this.lengthCm = lengthCm;
         this.fee = fee;
+    }
+
+    public void assignCourier(Courier courier) {
+        this.courier = Objects.requireNonNull(
+            courier,
+            "El repartidor no puede ser nulo"
+        );
     }
 }

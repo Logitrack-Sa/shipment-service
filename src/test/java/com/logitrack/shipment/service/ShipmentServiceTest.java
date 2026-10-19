@@ -6,6 +6,7 @@ import com.logitrack.shipment.entity.ShipmentStatus;
 import com.logitrack.shipment.exception.DuplicateResourceException;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
 import com.logitrack.shipment.mapper.ShipmentMapper;
+import com.logitrack.shipment.repository.CourierRepository;
 import com.logitrack.shipment.repository.CustomerRepository;
 import com.logitrack.shipment.repository.ShipmentRepository;
 import com.logitrack.shipment.support.ShipmentEntities;
@@ -43,6 +44,9 @@ class ShipmentServiceTest {
     @Mock
     private TrackingCodeGenerator trackingCodes;
 
+    @Mock
+    private CourierRepository couriers;
+
     private ShipmentService service;
 
     @BeforeEach
@@ -50,7 +54,7 @@ class ShipmentServiceTest {
         var mapper = new ShipmentMapper();
         var fees = new FeeCalculator(new BigDecimal("1000"), new BigDecimal("250"), new BigDecimal("5000"));
         var creator = new ShipmentCreator(customers, shipments, fees, mapper, recorder);
-        service = new ShipmentService(shipments, creator, trackingCodes, mapper);
+        service = new ShipmentService(shipments, creator, trackingCodes, mapper, couriers);
     }
 
     @Nested

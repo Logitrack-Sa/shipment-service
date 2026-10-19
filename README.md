@@ -63,6 +63,28 @@ usan `BigDecimal` para evitar errores binarios en el cálculo de tarifa.
 El documento `doc/Issue1.md` corresponde al ejemplo anterior; el alcance vigente
 está en las issues #12–#33 de GitHub.
 
+## Documentación de la API (Swagger UI)
+
+El servicio cuenta con documentación interactiva basada en OpenAPI 3 (Springdoc). Con la aplicación en ejecución, puedes acceder a:
+
+- **Swagger UI**: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
+- **OpenAPI JSON**: `http://localhost:8080/v3/api-docs`
+
+## Ejecución con Docker y Docker Compose
+
+El servicio cuenta con un `Dockerfile` multi-stage optimizado (Java 25) y un archivo de configuración en `compose.yaml` para levantar la aplicación junto con su base de datos MySQL de forma completamente aislada.
+
+### Prerrequisitos
+- [Docker](https://www.docker.com/) y Docker Compose instalados.
+
+### Pasos para levantar el entorno
+
+1. Clona el repositorio y situarse en la carpeta del servicio:
+   `cd shipment-service`
+## Cómo probarlo
+2. Ejecutar el entorno completo con:
+   `docker compose up --build`
+
 ## Tarifa propuesta
 
 `pesoVolumetricoKg = largoCm * anchoCm * altoCm / divisor`
@@ -94,9 +116,9 @@ Cambiar la configuración requiere reiniciar la aplicación.
 ## Manejo global de excepciones (Issue #17)
 
 `GlobalExceptionHandler` (`@RestControllerAdvice`,
-`com.logitrack.shipment.controller`) traduce las excepciones de dominio y de
+`com.logitrack.shipmentservice.controller`) traduce las excepciones de dominio y de
 framework a respuestas HTTP con un único formato `ErrorResponse`
-(`com.logitrack.shipment.dto.ErrorResponse`):
+(`com.logitrack.shipmentservice.dto.ErrorResponse`):
 
 ```json
 {
@@ -134,7 +156,7 @@ los clientes reaccionen sin parsear el mensaje.
 | `ObjectOptimisticLockingFailureException` (update concurrente) | 409 | `CONCURRENT_MODIFICATION` | no |
 | Cualquier otra `Exception` | 500 | `INTERNAL_SERVER_ERROR` | no |
 
-Las excepciones de dominio viven en `com.logitrack.shipment.exception` y todas
+Las excepciones de dominio viven en `com.logitrack.shipmentservice.exception` y todas
 extienden `DomainException`, que expone el `code()` que usa el handler. Las reglas de
 negocio parten de `BusinessRuleException` (422): las derivadas solo aportan su `code`
 y su mensaje. El handler 500 **no expone stacktrace ni detalles internos**: el error
