@@ -197,4 +197,71 @@ public class ShipmentController {
             @RequestBody ChangeStatusRequest request) {
         return service.changeStatus(id, request.status(), request.observation());
     }
+
+    @PostMapping("/{id}/cancellation")
+    @Operation(
+        summary = "Cancelar un envío pendiente",
+        description = """
+            Cancela un envío cambiando su estado a CANCELADO.
+            Solo se permite desde PENDIENTE; la cancelación no elimina el envío y conserva
+            el repartidor asignado, registrando el cambio en el historial de estados.
+            Los envíos EN_RUTA, ENTREGADO o CANCELADO no pueden cancelarse.
+            """
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Envío cancelado correctamente",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ShipmentResponse.class),
+                examples = @ExampleObject(
+                    name = "Envío cancelado",
+                    value = """
+                        {
+                          "id": "550e8400-e29b-41d4-a716-446655440000",
+                          "status": "CANCELADO"
+                        }
+                        """
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "UUID inválido",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ErrorResponse.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Envío inexistente",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ErrorResponse.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "422",
+            description = "El envío no está en estado PENDIENTE",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = @ExampleObject(
+                    value = """
+                        {
+                          "status": 422,
+                          "code": "SHIPMENT_CANNOT_BE_CANCELLED",
+                          "message": "El envío 550e8400-e29b-41d4-a716-446655440000 no puede cancelarse porque está en estado EN_RUTA"
+                        }
+                        """
+                )
+            )
+        )
+    })
+    public ShipmentResponse cancel(
+            @Parameter(description = "UUID del envío", required = true) @PathVariable UUID id) {
+        return service.cancel(id);
+    }
 }
