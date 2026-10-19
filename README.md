@@ -35,18 +35,10 @@ Las pruebas unitarias no requieren red ni base de datos. El perfil `test` usa H2
 solo para contexto y persistencia; no reemplaza MySQL/Testcontainers de #30.
 JaCoCo genera `target/site/jacoco/index.html`.
 
-En cada PR y cada push a `develop` o `main`, GitHub Actions ejecuta la suite
-completa con Temurin 25, primero con H2 y luego con MySQL 8.4. Si pasa,
-construye la imagen y levanta el Compose completo en un entorno descartable.
-Prueba por HTTP health, Swagger, OpenAPI, clientes, repartidores, registro y
-consulta de envíos, tarifa, asignación y errores 400/404/409/422.
-Los contenedores y volúmenes de CI se eliminan al finalizar, incluso si falla.
-También se puede iniciar la verificación desde **Actions → Java y MySQL → Run workflow**.
-
-Para repetir el flujo HTTP en un entorno local de pruebas: con el Compose
-disponible, ejecutar `python .github/scripts/smoke_test.py`. El script inserta
-datos de prueba; usar una base descartable. La validación de migraciones
-productivas sigue pendiente en #27/#30.
+La CI ejecuta la suite con Temurin 25 y vuelve a probar alta, historial,
+colisiones y rollback contra un MySQL 8.4 efímero. También verifica health,
+Swagger y OpenAPI por HTTP. Ese smoke test crea el esquema únicamente en su
+base aislada; la validación de migraciones productivas sigue en #27/#30.
 
 La suite unitaria puede ejecutarse sin BD ni red, con las dependencias ya
 descargadas: `./mvnw -o -Dtest=ShipmentServiceTest,FeeCalculatorTest test`.
@@ -92,21 +84,6 @@ Los recursos están en `src/main/resources/static/docs`, sin compilación fronte
 ni servicios externos. Si cambias el puerto del servicio, usa ese mismo puerto
 en las URLs anteriores.
 
-## Ejecución con Docker y Docker Compose
-
-El servicio cuenta con un `Dockerfile` multi-stage optimizado (Java 25) y un archivo de configuración en `compose.yaml` para levantar la aplicación junto con su base de datos MySQL de forma completamente aislada.
-
-### Prerrequisitos
-- [Docker](https://www.docker.com/) y Docker Compose instalados.
-
-### Pasos para levantar el entorno
-
-1. Clona el repositorio y situarse en la carpeta del servicio:
-   `cd shipment-service`
-## Cómo probarlo
-2. Ejecutar el entorno completo con:
-   `docker compose up --build`
-
 ## Tarifa propuesta
 
 `pesoVolumetricoKg = largoCm * anchoCm * altoCm / divisor`
@@ -127,87 +104,6 @@ Ejemplo: 2,5 kg y 30 × 20 × 40 cm tienen peso facturable de 4,8 kg y tarifa
 de 2200,00. Base y precio no negativos; divisor, peso y medidas positivos.
 Cambiar la configuración requiere reiniciar la aplicación.
 
-### Módulo de Repartidores (`Courier`)
-
-Se ha implementado el núcleo de gestión y ciclo de vida de los repartidores dentro del
-microservicio `shipment-service`, siguiendo una arquitectura limpia y principios de
-Clean Code.
-
-### Características Principales
-- **Entidad `Courier`**: Diseñada bajo un modelo de dominio rico que extiende de
-`BaseEntity` (incluyendo ID de tipo UUID y campos de auditoría).
-- **Control de Estados**: Manejo de `CourierStatus` (`ACTIVO` por defecto, con
-capacidad de cambio a `INACTIVO`).
-- **DTOs y Mapeo**: Separación estricta de responsabilidades mediante DTOs
-específicos (`CourierRequest`, `CourierResponse`, `CourierStatusRequest`)
-y un `CourierMapper`.
-- **Paginación y Filtrado**: Listado paginado con soporte para filtrado opcional
-mediante el estado del repartidor.
-
-### Endpoints Disponibles
-
-| Método | Endpoint | Descripción | Código HTTP Exitoso |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/v1/couriers` | Registrar un nuevo repartidor | `201 Created` (con cabecera Location) |
-| `GET` | `/api/v1/couriers` | Listar repartidores (permite filtrar con `?status=ACTIVO`) | `200 OK` (Paginado) |
-| `GET` | `/api/v1/couriers/{id}` | Obtener detalle de un repartidor por su UUID | `200 OK` |
-| `PATCH` | `/api/v1/couriers/{id}/status` | Actualizar estado operativo (activar/desactivar) | `200 OK` |
-## Manejo de errores
-
-`GlobalExceptionHandler` (`@RestControllerAdvice`,
-`com.logitrack.shipment.controller`) traduce las excepciones de dominio y de
-framework a respuestas HTTP con un único formato `ErrorResponse`
-(`com.logitrack.shipment.dto.ErrorResponse`):
-
-```json
-{
-  "timestamp": "2026-10-17T20:00:00Z",
-  "status": 422,
-  "error": "Unprocessable Entity",
-  "code": "INVALID_STATE_TRANSITION",
-  "message": "Transición de estado inválida para Shipment: PENDIENTE -> ENTREGADO",
-  "path": "/api/v1/shipments/11111111-2222-3333-4444-555555555555/estado",
-  "details": [
-    { "field": "estado", "message": "Valor inválido: ENTREGADO" }
-  ]
-}
-```
-
-`details` es **opcional**: solo aparece cuando hay violaciones de campos o parámetros
-(validación, tipo inválido, etc.). `code` es un identificador estable pensado para que
-los clientes reaccionen sin parsear el mensaje.
-
-### Tabla excepción → HTTP
-
-| Excepción | HTTP | `code` | `details` |
-| --- | --- | --- | --- |
-| `ResourceNotFoundException` | 404 | `RESOURCE_NOT_FOUND` | no |
-| `DuplicateResourceException` | 409 | `DUPLICATE_RESOURCE` | no |
-| `BusinessRuleException` (base) | 422 | `BUSINESS_RULE_VIOLATION` | no |
-| `InvalidStateTransitionException` | 422 | `INVALID_STATE_TRANSITION` | no |
-| `ShipmentCannotBeCancelledException` | 422 | `SHIPMENT_CANNOT_BE_CANCELLED` | no |
-| `CourierNotActiveException` | 422 | `COURIER_NOT_ACTIVE` | no |
-| `CourierNotAssignedException` | 422 | `COURIER_NOT_ASSIGNED` | no |
-| `MethodArgumentNotValidException` (`@Valid` en el body) | 400 | `VALIDATION_ERROR` | sí, por campo |
-| `ConstraintViolationException` (parámetros `@Validated`) | 400 | `CONSTRAINT_VIOLATION` | sí, por parámetro |
-| `HttpMessageNotReadableException` (JSON malformado / enum inválido) | 400 | `MALFORMED_REQUEST` | no |
-| `MethodArgumentTypeMismatchException` (UUID u otro tipo inválido) | 400 | `TYPE_MISMATCH` | sí, por parámetro |
-| `ObjectOptimisticLockingFailureException` (update concurrente) | 409 | `CONCURRENT_MODIFICATION` | no |
-| Cualquier otra `Exception` | 500 | `INTERNAL_SERVER_ERROR` | no |
-
-Las excepciones de dominio viven en `com.logitrack.shipment.exception` y todas
-extienden `DomainException`, que expone el `code()` que usa el handler. Las reglas de
-negocio parten de `BusinessRuleException` (422): las derivadas solo aportan su `code`
-y su mensaje. El handler 500 **no expone stacktrace ni detalles internos**: el error
-completo se registra con `log.error` y el cliente recibe un mensaje genérico.
-
-Los tests cubren cada fila de la tabla con un controller de prueba que lanza la
-excepción correspondiente:
-
-```bash
-./mvnw test -Dtest=GlobalExceptionHandlerTest
-```
-
 ## Envíos
 
 | Método | Ruta | Resultado |
@@ -216,7 +112,6 @@ excepción correspondiente:
 | GET | `/api/v1/shipments/{id}` | Detalle por UUID |
 | GET | `/api/v1/shipments/tracking/{trackingCode}` | Detalle por seguimiento |
 | GET | `/api/v1/shipments?status=PENDIENTE&page=0&size=20` | Página, con estado opcional |
-| PUT | `/api/v1/shipments/{id}/courier` | Asignar o reasignar un repartidor activo a un envío en estado `PENDIENTE` | `200 OK` |
 
 La paginación empieza en 0, admite entre 1 y 100 elementos y ordena por fecha
 de creación descendente y UUID. La respuesta contiene `content`, `page`, `size`,
@@ -229,5 +124,7 @@ preconsulta de existencia e índice único en BD. Cada intento de alta es una
 transacción independiente; se reintenta únicamente una colisión de tracking y
 se aborta después de cinco intentos. Envío e historial se confirman juntos.
 
-Las APIs de clientes y repartidores, la asignación y el contrato de errores
-están integrados. La consulta del historial (#21) continúa en su issue.
+Las entidades básicas de cliente/repartidor, el contrato de errores y el
+recorder de historial permiten integrar los envíos. Las APIs de clientes y
+repartidores (#14/#15), los errores de estados (#17) y la consulta del historial
+(#21) continúan en sus issues correspondientes.
