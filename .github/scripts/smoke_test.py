@@ -5,7 +5,7 @@ import os
 import time
 import uuid
 from decimal import Decimal
-from urllib.error import HTTPError, URLError
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 BASE_URL = os.environ.get("SMOKE_BASE_URL", "http://localhost:8080").rstrip("/")
@@ -32,7 +32,7 @@ def wait_for_application():
         try:
             if request("/actuator/health")["status"] == "UP":
                 return
-        except (URLError, TimeoutError, AssertionError):
+        except (OSError, AssertionError):
             pass
         time.sleep(2)
     raise RuntimeError("La aplicación no quedó disponible en /actuator/health")

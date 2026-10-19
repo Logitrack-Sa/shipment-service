@@ -117,19 +117,19 @@ Cambiar la configuración requiere reiniciar la aplicación.
 
 ### Módulo de Repartidores (`Courier`)
 
-Se ha implementado el núcleo de gestión y ciclo de vida de los repartidores dentro del 
-microservicio `shipment-service`, siguiendo una arquitectura limpia y principios de 
+Se ha implementado el núcleo de gestión y ciclo de vida de los repartidores dentro del
+microservicio `shipment-service`, siguiendo una arquitectura limpia y principios de
 Clean Code.
 
 ### Características Principales
-- **Entidad `Courier`**: Diseñada bajo un modelo de dominio rico que extiende de 
+- **Entidad `Courier`**: Diseñada bajo un modelo de dominio rico que extiende de
 `BaseEntity` (incluyendo ID de tipo UUID y campos de auditoría).
-- **Control de Estados**: Manejo de `CourierStatus` (`ACTIVO` por defecto, con 
+- **Control de Estados**: Manejo de `CourierStatus` (`ACTIVO` por defecto, con
 capacidad de cambio a `INACTIVO`).
-- **DTOs y Mapeo**: Separación estricta de responsabilidades mediante DTOs 
-específicos (`CourierRequest`, `CourierResponse`, `CourierStatusRequest`) 
+- **DTOs y Mapeo**: Separación estricta de responsabilidades mediante DTOs
+específicos (`CourierRequest`, `CourierResponse`, `CourierStatusRequest`)
 y un `CourierMapper`.
-- **Paginación y Filtrado**: Listado paginado con soporte para filtrado opcional 
+- **Paginación y Filtrado**: Listado paginado con soporte para filtrado opcional
 mediante el estado del repartidor.
 
 ### Endpoints Disponibles
