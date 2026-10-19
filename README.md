@@ -19,7 +19,8 @@ La configuración bancaria del ejemplo anterior se retiró del servicio de enví
 
 El Compose levanta MySQL 8.4 y la aplicación: copiar `.env.example` a `.env`,
 elegir contraseñas locales y ejecutar `docker compose up --build -d`.
-La API queda en `http://localhost:8080` y MySQL en el puerto local 3308.
+La API queda en `http://localhost:8080` y MySQL en el puerto local `DB_PORT`
+(3308 si no está definido). El mismo valor sirve para conectarse desde el IDE.
 La conexión entre la aplicación y MySQL exige TLS (`sslMode=REQUIRED`).
 Este entorno de desarrollo crea y actualiza el esquema con Hibernate;
 las migraciones versionadas siguen pendientes en #27.
