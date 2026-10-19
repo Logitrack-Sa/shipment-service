@@ -63,6 +63,13 @@ usan `BigDecimal` para evitar errores binarios en el cálculo de tarifa.
 El documento `doc/Issue1.md` corresponde al ejemplo anterior; el alcance vigente
 está en las issues #12–#33 de GitHub.
 
+## Documentación de la API (Swagger UI)
+
+El servicio cuenta con documentación interactiva basada en OpenAPI 3 (Springdoc). Con la aplicación en ejecución, puedes acceder a:
+
+- **Swagger UI**: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
+- **OpenAPI JSON**: `http://localhost:8080/v3/api-docs`
+
 ## Tarifa propuesta
 
 `pesoVolumetricoKg = largoCm * anchoCm * altoCm / divisor`
