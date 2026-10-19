@@ -70,6 +70,21 @@ El servicio cuenta con documentación interactiva basada en OpenAPI 3 (Springdoc
 - **Swagger UI**: [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
 - **OpenAPI JSON**: `http://localhost:8080/v3/api-docs`
 
+## Ejecución con Docker y Docker Compose
+
+El servicio cuenta con un `Dockerfile` multi-stage optimizado (Java 25) y un archivo de configuración en `compose.yaml` para levantar la aplicación junto con su base de datos MySQL de forma completamente aislada.
+
+### Prerrequisitos
+- [Docker](https://www.docker.com/) y Docker Compose instalados.
+
+### Pasos para levantar el entorno
+
+1. Clona el repositorio y situarse en la carpeta del servicio:
+   `cd shipment-service`
+## Cómo probarlo
+2. Ejecutar el entorno completo con:
+   `docker compose up --build`
+
 ## Tarifa propuesta
 
 `pesoVolumetricoKg = largoCm * anchoCm * altoCm / divisor`
