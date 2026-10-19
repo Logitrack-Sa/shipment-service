@@ -2,6 +2,7 @@ package com.logitrack.shipment.service;
 
 import com.logitrack.shipment.dto.CreateShipmentRequest;
 import com.logitrack.shipment.dto.ShipmentResponse;
+import com.logitrack.shipment.dto.StatusHistoryResponse;
 import com.logitrack.shipment.dto.PageResponse;
 import com.logitrack.shipment.entity.Courier;
 import com.logitrack.shipment.entity.Shipment;
@@ -11,14 +12,17 @@ import com.logitrack.shipment.exception.CourierNotActiveException;
 import com.logitrack.shipment.exception.DuplicateResourceException;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
 import com.logitrack.shipment.mapper.ShipmentMapper;
+import com.logitrack.shipment.mapper.ShipmentStatusHistoryMapper;
 import com.logitrack.shipment.repository.CourierRepository;
 import com.logitrack.shipment.repository.ShipmentRepository;
+import com.logitrack.shipment.repository.ShipmentStatusHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -30,6 +34,8 @@ public class ShipmentService {
     private final TrackingCodeGenerator trackingCodes;
     private final ShipmentMapper mapper;
     private final CourierRepository couriers;
+    private final ShipmentStatusHistoryRepository statusHistory;
+    private final ShipmentStatusHistoryMapper statusHistoryMapper;
 
 
     @Transactional
@@ -57,6 +63,16 @@ public class ShipmentService {
     public ShipmentResponse findByTrackingCode(String trackingCode) {
         return shipments.findByTrackingCode(trackingCode).map(mapper::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Envío", trackingCode));
+    }
+
+    @Transactional(readOnly = true)
+    public List<StatusHistoryResponse> getHistory(UUID shipmentId) {
+        if (!shipments.existsById(shipmentId)) {
+            throw new ResourceNotFoundException("Envío", shipmentId);
+        }
+        return statusHistory.findByShipmentIdOrderByChangedAtAsc(shipmentId).stream()
+                .map(statusHistoryMapper::toResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)

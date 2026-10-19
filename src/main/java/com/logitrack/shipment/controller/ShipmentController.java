@@ -3,6 +3,7 @@ package com.logitrack.shipment.controller;
 import com.logitrack.shipment.dto.AssignCourierRequest;
 import com.logitrack.shipment.dto.CreateShipmentRequest;
 import com.logitrack.shipment.dto.ShipmentResponse;
+import com.logitrack.shipment.dto.StatusHistoryResponse;
 import com.logitrack.shipment.dto.PageResponse;
 import com.logitrack.shipment.entity.ShipmentStatus;
 import com.logitrack.shipment.service.ShipmentService;
@@ -19,6 +20,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -67,6 +69,14 @@ public class ShipmentController {
         var shipment = service.createShipment(request);
         var location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(shipment.id()).toUri();
         return ResponseEntity.created(location).body(shipment);
+    }
+
+    @GetMapping("/{id}/history")
+    @Operation(summary = "Consultar el historial de estados de un envío")
+    @ApiResponse(responseCode = "200", description = "Historial ordenado cronológicamente")
+    @ApiResponse(responseCode = "404", description = "Envío inexistente")
+    public List<StatusHistoryResponse> getHistory(@PathVariable UUID id) {
+        return service.getHistory(id);
     }
 
     @PutMapping("/{id}/courier")

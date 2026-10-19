@@ -1,6 +1,7 @@
 package com.logitrack.shipment.controller;
 
 import com.logitrack.shipment.dto.PageResponse;
+import com.logitrack.shipment.dto.StatusHistoryResponse;
 import com.logitrack.shipment.entity.ShipmentStatus;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
 import com.logitrack.shipment.service.ShipmentService;
@@ -14,7 +15,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -76,6 +79,33 @@ class ShipmentQueryControllerTest {
                 .thenThrow(new ResourceNotFoundException("Envío", ShipmentFixtures.SHIPMENT_ID));
 
         mvc.perform(get("/api/v1/shipments/{id}", ShipmentFixtures.SHIPMENT_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    void returnsStatusHistoryOrderedChronologically() throws Exception {
+        when(service.getHistory(ShipmentFixtures.SHIPMENT_ID)).thenReturn(List.of(
+                new StatusHistoryResponse(UUID.randomUUID(), null, ShipmentStatus.PENDIENTE,
+                        Instant.parse("2025-01-01T00:00:00Z"), "Alta del envío"),
+                new StatusHistoryResponse(UUID.randomUUID(), ShipmentStatus.PENDIENTE, ShipmentStatus.EN_RUTA,
+                        Instant.parse("2025-01-01T01:00:00Z"), "Asignado a repartidor")));
+
+        mvc.perform(get("/api/v1/shipments/{id}/history", ShipmentFixtures.SHIPMENT_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].previousStatus").doesNotExist())
+                .andExpect(jsonPath("$[0].newStatus").value("PENDIENTE"))
+                .andExpect(jsonPath("$[1].previousStatus").value("PENDIENTE"))
+                .andExpect(jsonPath("$[1].newStatus").value("EN_RUTA"));
+    }
+
+    @Test
+    void returns404WhenHistoryShipmentDoesNotExist() throws Exception {
+        UUID shipmentId = UUID.randomUUID();
+        when(service.getHistory(any(UUID.class))).thenThrow(new ResourceNotFoundException("Envío", shipmentId));
+
+        mvc.perform(get("/api/v1/shipments/{id}/history", shipmentId))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
     }

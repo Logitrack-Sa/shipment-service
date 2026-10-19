@@ -3,12 +3,15 @@ package com.logitrack.shipment.service;
 import com.logitrack.shipment.dto.CreateShipmentRequest;
 import com.logitrack.shipment.entity.Shipment;
 import com.logitrack.shipment.entity.ShipmentStatus;
+import com.logitrack.shipment.entity.ShipmentStatusHistory;
 import com.logitrack.shipment.exception.DuplicateResourceException;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
 import com.logitrack.shipment.mapper.ShipmentMapper;
+import com.logitrack.shipment.mapper.ShipmentStatusHistoryMapper;
 import com.logitrack.shipment.repository.CourierRepository;
 import com.logitrack.shipment.repository.CustomerRepository;
 import com.logitrack.shipment.repository.ShipmentRepository;
+import com.logitrack.shipment.repository.ShipmentStatusHistoryRepository;
 import com.logitrack.shipment.support.ShipmentEntities;
 import com.logitrack.shipment.support.ShipmentFixtures;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +28,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,14 +51,18 @@ class ShipmentServiceTest {
     @Mock
     private CourierRepository couriers;
 
+    @Mock
+    private ShipmentStatusHistoryRepository statusHistory;
+
     private ShipmentService service;
 
     @BeforeEach
     void createService() {
         var mapper = new ShipmentMapper();
+        var statusHistoryMapper = new ShipmentStatusHistoryMapper();
         var fees = new FeeCalculator(new BigDecimal("1000"), new BigDecimal("250"), new BigDecimal("5000"));
         var creator = new ShipmentCreator(customers, shipments, fees, mapper, recorder);
-        service = new ShipmentService(shipments, creator, trackingCodes, mapper, couriers);
+        service = new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusHistory, statusHistoryMapper);
     }
 
     @Nested
@@ -217,6 +225,38 @@ class ShipmentServiceTest {
 
             assertThat(service.findAll(null, pageable).content()).isEmpty();
             verify(shipments, never()).findByStatus(any(), any());
+        }
+    }
+
+    @Nested
+    class QueryHistory {
+        @Test
+        void returnsHistoryOrderedChronologically() {
+            var shipment = ShipmentEntities.shipment();
+            var initial = new ShipmentStatusHistory(shipment, null, ShipmentStatus.PENDIENTE,
+                    Instant.parse("2025-01-01T00:00:00Z"), "Alta del envío");
+            var inTransit = new ShipmentStatusHistory(shipment, ShipmentStatus.PENDIENTE, ShipmentStatus.EN_RUTA,
+                    Instant.parse("2025-01-01T01:00:00Z"), "Asignado");
+            when(shipments.existsById(SHIPMENT_ID)).thenReturn(true);
+            when(statusHistory.findByShipmentIdOrderByChangedAtAsc(SHIPMENT_ID))
+                    .thenReturn(List.of(initial, inTransit));
+
+            var history = service.getHistory(SHIPMENT_ID);
+
+            assertThat(history).hasSize(2);
+            assertThat(history.get(0).previousStatus()).isNull();
+            assertThat(history.get(0).newStatus()).isEqualTo(ShipmentStatus.PENDIENTE);
+            assertThat(history.get(1).previousStatus()).isEqualTo(ShipmentStatus.PENDIENTE);
+            assertThat(history.get(1).newStatus()).isEqualTo(ShipmentStatus.EN_RUTA);
+        }
+
+        @Test
+        void rejectsHistoryOfUnknownShipment() {
+            when(shipments.existsById(SHIPMENT_ID)).thenReturn(false);
+
+            assertThatThrownBy(() -> service.getHistory(SHIPMENT_ID))
+                    .isInstanceOf(ResourceNotFoundException.class);
+            verifyNoInteractions(statusHistory);
         }
     }
 }
