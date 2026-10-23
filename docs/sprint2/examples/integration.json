@@ -1,0 +1,32 @@
+{
+  "profile": "dev",
+  "loginField": "email",
+  "urls": {
+    "shipment": "E2E_SHIPMENT_URL",
+    "courier": "E2E_COURIER_URL",
+    "security": "E2E_SECURITY_URL",
+    "config": "E2E_CONFIG_URL"
+  },
+  "accounts": {
+    "admin": {
+      "username": "E2E_ADMIN_USERNAME",
+      "password": "E2E_ADMIN_PASSWORD"
+    },
+    "clientA": {
+      "username": "E2E_CLIENT_A_USERNAME",
+      "password": "E2E_CLIENT_A_PASSWORD"
+    },
+    "clientB": {
+      "username": "E2E_CLIENT_B_USERNAME",
+      "password": "E2E_CLIENT_B_PASSWORD"
+    },
+    "courierA": {
+      "username": "E2E_COURIER_A_USERNAME",
+      "password": "E2E_COURIER_A_PASSWORD"
+    },
+    "courierB": {
+      "username": "E2E_COURIER_B_USERNAME",
+      "password": "E2E_COURIER_B_PASSWORD"
+    }
+  }
+}
