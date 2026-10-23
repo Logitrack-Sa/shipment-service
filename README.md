@@ -128,3 +128,7 @@ Las entidades básicas de cliente/repartidor, el contrato de errores y el
 recorder de historial permiten integrar los envíos. Las APIs de clientes y
 repartidores (#14/#15), los errores de estados (#17) y la consulta del historial
 (#21) continúan en sus issues correspondientes.
+
+## Sprint 2
+
+[Tablero y reparto](https://github.com/orgs/Logitrack-Sa/projects/2) · [Contratos, backlog y workflow](docs/sprint2/README.md). La implementación del Sprint 1 se conserva; el Sprint 2 está organizado en repositorios e issues independientes.
