@@ -8,6 +8,9 @@ from pathlib import Path
 import re
 
 
+SCENARIOS = {f"20000000-0000-0000-0000-{number:012d}": number for number in range(1, 10)}
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         status = 200
@@ -20,11 +23,11 @@ class Handler(BaseHTTPRequestHandler):
                 status, body = 401, {"code": "UNAUTHORIZED"}
             else:
                 identifier = match[2]
-                active = identifier.endswith("0001")
+                scenario = SCENARIOS.get(identifier, 3)
+                active = scenario == 1
                 body = {"courierId": identifier, "status": "ACTIVO" if active else "INACTIVO"}
                 if match[3] == "availability":
                     body["available"] = active
-                scenario = int(identifier[-4:])
                 if scenario in (3, 4, 5, 6, 9):
                     status = {3: 404, 4: 401, 5: 403, 6: 503, 9: 422}[scenario]
                     body = {"code": "DETERMINISTIC_TEST_FAILURE"}
@@ -48,4 +51,5 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-ThreadingHTTPServer(("0.0.0.0", 8765), Handler).serve_forever()
+if __name__ == "__main__":
+    ThreadingHTTPServer(("0.0.0.0", 8765), Handler).serve_forever()

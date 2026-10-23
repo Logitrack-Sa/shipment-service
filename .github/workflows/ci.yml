@@ -44,6 +44,8 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+      - name: Verificar dobles HTTP de CI
+        run: python3 -m unittest discover -s .github/scripts -p test_contract_fixture.py
       - name: Compilar y ejecutar la suite
         run: ./mvnw --batch-mode --no-transfer-progress clean verify
       - name: Ejecutar toda la suite con MySQL
