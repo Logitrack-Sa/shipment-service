@@ -14,10 +14,10 @@ Tres carriles empiezan juntos. Congelar campos y fixtures comunes en CONTRATOS.m
 ## Issue → rama → PR → revisión → integración
 1. Tomar una issue; marcar En progreso (o comentar /review status doing para sincronizar etiquetas y Project cuando PROJECT_TOKEN esté configurado).
 2. Rama corta desde main actualizado: feat/s2-XX-descripcion o fix/s2-XX-descripcion. Cambios pequeños y commits breves en español.
-3. Abrir PR con objetivo, evidencia real de pruebas y Closes URL_COMPLETA_DE_LA_ISSUE. En mismo repo también funciona Closes #N. En borrador sigue En progreso; listo para revisar pasa a En review.
+3. Abrir PR con objetivo, evidencia real de pruebas y Closes URL_COMPLETA_DE_LA_ISSUE. En mismo repo también funciona Closes #N. En borrador usar Refs #N y mantener la tarjeta En progreso; al estar listo agregar Closes para vincular y pasar a En review mediante la automatización nativa.
 4. CI ejecuta pruebas reproducibles del repo. IA revisa diff y criterios vinculados y publica devolución en español: hallazgos, severidad, ubicación, pruebas sugeridas y cobertura. No crea planes de implementación, no cambia asignaciones/puntos ni edita código.
 5. Pedir revisión a otro integrante. Corregir y hacer push: la IA vuelve a analizar el SHA nuevo. /review en un comentario independiente solicita otra revisión del PR actual.
-6. Mantenedor integra tras comprobar tests, devoluciones y revisión humana. El bot no aprueba ni fusiona PR. Un PR cerrado sin merge no completa la issue. Hecho requiere issue cerrada como completada o integración efectiva.
+6. Mantenedor integra tras comprobar tests, devoluciones y revisión humana. El bot no aprueba ni fusiona PR. Un PR cerrado sin merge no completa la issue; devolver la tarjeta a En progreso manualmente, o usar el comando si se configura sincronización opcional por token. Hecho requiere issue cerrada como completada o integración efectiva.
 
 Preferir main como integración por repo; no crear develop por costumbre para un sprint pequeño multirrepo. Si mantienen develop, usarla conscientemente y recordar que GitHub cierra automáticamente las issues al integrar a la rama por defecto. No cerrar una issue solo porque el PR fue aceptado a una rama intermedia.
 
@@ -30,7 +30,7 @@ GitHub Actions token se intenta con copilot-requests:write según políticas de 
 
 PROJECT_NUMBER=2 y PROJECT_OWNER=Logitrack-Sa. Sin PROJECT_TOKEN, las etiquetas de estado se actualizan pero no se afirma que las tarjetas se hayan movido: el workflow informa configuración pendiente. GITHUB_TOKEN no accede al Project de organización. Configurar un GitHub App/token limitado y autorizado para ese Project, preferentemente secreto de organización restringido a estos repositorios. No reutilizar el token general de gh como secreto de Actions.
 
-Automatizaciones nativas del Project cierran/reabren tarjetas según el estado real de la issue. Revisar los filtros de auto-add por repositorio y label sprint:2 para no mezclar el Sprint1. No hay fecha de vencimiento inventada ni merge automático. La disponibilidad real de Copilot/Projects se demuestra por una ejecución, no por la presencia del YAML.
+Las automatizaciones nativas del Project ponen En review al vincular un PR y Hecho al cerrar la issue; reabrir vuelve a Backlog. Se deshabilita el cierre de issues por arrastrar una tarjeta a Hecho. El flujo normal no necesita almacenar un token de Projects en Actions. Revisar los filtros de auto-add por repositorio y label sprint:2 para no mezclar el Sprint1. No hay fecha de vencimiento inventada ni merge automático. La disponibilidad real de Copilot/Projects se demuestra por una ejecución, no por la presencia del YAML.
 
 ## DoD
 Criterios de la issue comprobados; pruebas locales/CI pertinentes; contrato/OpenAPI actualizado si cambió; sin secretos ni consultas cruzadas a bases; revisión humana; PR integrado. Para entrega global: Docker Hub con cuatro imágenes versionadas, Compose image-only y evidencia del flujo completo con JWT/roles/pertenencia.
