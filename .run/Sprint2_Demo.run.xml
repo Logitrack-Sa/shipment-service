@@ -3,10 +3,19 @@
     <MavenSettings>
       <option name="myRunnerParameters">
         <MavenRunnerParameters>
-          <option name="cmdOptions" value="--batch-mode --no-transfer-progress -Dspring-boot.run.main-class=com.logitrack.shipment.support.LocalShipmentApplication -Dspring-boot.run.useTestClasspath=true" />
           <option name="workingDirPath" value="$PROJECT_DIR$" />
-          <option name="goals"><list><option value="spring-boot:run" /></list></option>
-          <option name="profilesMap"><map /></option>
+          <option name="goals">
+            <list>
+              <option value="--batch-mode" />
+              <option value="--no-transfer-progress" />
+              <option value="-Dspring-boot.run.main-class=com.logitrack.shipment.support.LocalShipmentApplication" />
+              <option value="-Dspring-boot.run.useTestClasspath=true" />
+              <option value="spring-boot:run" />
+            </list>
+          </option>
+          <option name="profilesMap">
+            <map />
+          </option>
         </MavenRunnerParameters>
       </option>
     </MavenSettings>
