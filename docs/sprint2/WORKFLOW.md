@@ -40,9 +40,21 @@ Referencias oficiales: https://docs.github.com/en/copilot/how-tos/copilot-cli/au
 ## Estado comprobado de la instalación
 - Cinco repositorios y30 issues cargadas; puntos numéricos y etiquetas; todos los miembros de la organización pueden editar el Project.
 - Evidencia histórica del PR inicial #66: [Maven, MySQL y smoke Docker/HTTP aprobados](https://github.com/Logitrack-Sa/shipment-service/actions/runs/39898308525). Ese resultado no sustituye los checks del SHA de cada PR posterior, que pueden estar pendientes.
-- Tests del revisor:23 casos locales; CI de automatización disponible por repo.
+- La suite del cambio de automatización [PR #67](https://github.com/Logitrack-Sa/shipment-service/pull/67) tiene 24 casos ejecutados localmente. Esa evidencia corresponde a la automatización, no al SHA del PR documental #68. Consultar los checks del PR #67 para su resultado de CI actual.
 - Prueba real de Copilot en security-service PR9: tras configurar COPILOT_GITHUB_TOKEN, el modelo publicó su devolución y el check AI / review pasó. Se verificó también la ejecución automática de PR por synchronize, no solamente el disparo manual: [ejecución verificada](https://github.com/Logitrack-Sa/security-service/actions/runs/39899549797). Se configuró el secreto en los cinco repositorios y se verificaron devoluciones reales en sus PR de preparación; cada repositorio necesita mantener vigente su acceso Copilot.
 - /review status puede cambiar etiquetas sin credencial adicional; mover tarjeta con ese comando requiere PROJECT_TOKEN opcional. El flujo de PR vinculado/cierre/reapertura usa reglas nativas sin ese secreto.
 - Los servicios nuevos aún no tienen aplicación Java ni configuración productiva; las issues de implementación siguen abiertas.
 
 Los PR de bots no disparan análisis automático. Un mantenedor humano autorizado puede solicitar explícitamente su revisión mediante /review o workflow_dispatch; esa revisión manual es intencional y se prueba por separado. Los comentarios sin comandos no consultan permisos ni consumen IA.
+
+## Evidencia histórica de activación de Copilot
+
+Estas ejecuciones verifican acceso y devoluciones del modelo por repositorio. No certifican la implementación Java del Sprint 2 ni sustituyen los checks del SHA actual de otros PR.
+
+| Repositorio | Ejecución verificada | SHA revisado | Resultado del workflow |
+|---|---|---|---|
+| shipment-service | [Actions 39912101208](https://github.com/Logitrack-Sa/shipment-service/actions/runs/39912101208) | `300f6c7eb74d` | success |
+| courier-service | [Actions 39911299720](https://github.com/Logitrack-Sa/courier-service/actions/runs/39911299720) | `54773f068337` | success |
+| security-service | [Actions 39911305489](https://github.com/Logitrack-Sa/security-service/actions/runs/39911305489) | `21d667b9f1a6` | success |
+| config-server | [Actions 39911312638](https://github.com/Logitrack-Sa/config-server/actions/runs/39911312638) | `12b27d14f05e` | success |
+| config-repo | [Actions 39911316510](https://github.com/Logitrack-Sa/config-repo/actions/runs/39911316510) | `fee40d1957aa` | success |
