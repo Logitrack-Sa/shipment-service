@@ -16,4 +16,6 @@ Boot 3.5.16 y Spring Cloud 2025.0.3 (BOM 2025.0.x compatible). El bootstrap vers
 - ConfigClientIntegrationTest arranca el programa completo con Environment remoto simulado en dev/prod y comprueba que falla cuando Config Server falta.
 - CI inicia shipment y MySQL reales en contenedores con `.github/compose.smoke.yaml`. Config y courier son dobles declarados, la firma JWT RSA es real y efímera. No es evidencia de la integración final de cuatro aplicaciones; esa corresponde a #61/#64.
 
-El Compose básico del Sprint 1 todavía no es la entrega distribuida; el Dockerfile/Compose definitivos pertenecen a #58/#64. Para smoke aislado se usa el override de CI; no usar sus fixtures como configuración de producción.
+Dockerfile #58 adaptado: multietapa, bases por digest, usuario10001 y contexto mínimo. El Compose básico del Sprint 1 todavía no es la entrega distribuida de #64. Para smoke aislado se usa el override de CI; no usar sus fixtures como configuración de producción.
+
+Para IntelliJ sin dependencias externas ver [demo y pruebas locales](INTELLIJ.md). Para la entrega de cuatro servicios, [integración real](INTEGRACION.md).
