@@ -40,7 +40,7 @@ Referencias oficiales: https://docs.github.com/en/copilot/how-tos/copilot-cli/au
 ## Estado comprobado de la instalación
 - Cinco repositorios y30 issues cargadas; puntos numéricos y etiquetas; todos los miembros de la organización pueden editar el Project.
 - CI del PR inicial: Maven, MySQL y smoke de Docker/HTTP aprobados.
-- Tests del revisor:18 casos locales; CI de automatización disponible por repo.
+- Tests del revisor:19 casos locales; CI de automatización disponible por repo.
 - Prueba real de Copilot en security-service PR9: tras configurar COPILOT_GITHUB_TOKEN, el modelo publicó su devolución y el check AI / review pasó. Se verificó también la ejecución automática de PR por synchronize, no solamente el disparo manual: [ejecución verificada](https://github.com/Logitrack-Sa/security-service/actions/runs/39899549797). Cada repositorio requiere su acceso Copilot; esta evidencia no demuestra por sí sola que el secreto esté en los demás.
 - /review status puede cambiar etiquetas sin credencial adicional; mover tarjeta con ese comando requiere PROJECT_TOKEN opcional. El flujo de PR vinculado/cierre/reapertura usa reglas nativas sin ese secreto.
 - Los servicios nuevos aún no tienen aplicación Java ni configuración productiva; las issues de implementación siguen abiertas.
