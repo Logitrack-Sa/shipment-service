@@ -30,9 +30,17 @@ GitHub Actions token se intenta con copilot-requests:write según políticas de 
 
 PROJECT_NUMBER=2 y PROJECT_OWNER=Logitrack-Sa. Sin PROJECT_TOKEN, las etiquetas de estado se actualizan pero no se afirma que las tarjetas se hayan movido: el workflow informa configuración pendiente. GITHUB_TOKEN no accede al Project de organización. Configurar un GitHub App/token limitado y autorizado para ese Project, preferentemente secreto de organización restringido a estos repositorios. No reutilizar el token general de gh como secreto de Actions.
 
-Las automatizaciones nativas del Project ponen En review al vincular un PR y Hecho al cerrar la issue; reabrir vuelve a Backlog. Se deshabilita el cierre de issues por arrastrar una tarjeta a Hecho. El flujo normal no necesita almacenar un token de Projects en Actions. Revisar los filtros de auto-add por repositorio y label sprint:2 para no mezclar el Sprint1. No hay fecha de vencimiento inventada ni merge automático. La disponibilidad real de Copilot/Projects se demuestra por una ejecución, no por la presencia del YAML.
+Las automatizaciones nativas del Project ponen En review al vincular un PR y Hecho al cerrar la issue; reabrir vuelve a Backlog. Se deshabilita el cierre de issues por arrastrar una tarjeta a Hecho. El flujo normal no necesita almacenar un token de Projects en Actions. Los cinco formularios de issues incluyen projects: [Logitrack-Sa/2]; requieren que el creador tenga Write en el Project, permiso que ya tienen los miembros de la organización. El plan Free limita el auto-add nativo a un repositorio; se reservó para shipment-service con label sprint:2. Para issues creadas sin formulario en los otros repositorios, seleccionar el Project al crearlas o añadirlas manualmente. Las 30 issues iniciales ya están cargadas. El tablero histórico excluye sprint:2. No hay fecha de vencimiento inventada ni merge automático. La disponibilidad real de Copilot/Projects se demuestra por una ejecución, no por la presencia del YAML.
 
 ## DoD
 Criterios de la issue comprobados; pruebas locales/CI pertinentes; contrato/OpenAPI actualizado si cambió; sin secretos ni consultas cruzadas a bases; revisión humana; PR integrado. Para entrega global: Docker Hub con cuatro imágenes versionadas, Compose image-only y evidencia del flujo completo con JWT/roles/pertenencia.
 
 Referencias oficiales: https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/automate-with-actions y https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/automating-projects-using-actions
+
+## Estado comprobado de la instalación
+- Cinco repositorios y30 issues cargadas; puntos numéricos y etiquetas; todos los miembros de la organización pueden editar el Project.
+- CI del PR inicial: Maven, MySQL y smoke de Docker/HTTP aprobados.
+- Tests del revisor:16 casos locales; CI de automatización disponible por repo.
+- Prueba real de Copilot en security-service PR9: el token de Actions fue rechazado. Se requiere habilitar política/acceso Copilot de organización o COPILOT_GITHUB_TOKEN con Copilot Requests. Hasta verificar comentario real del modelo, la IA figura pendiente, no activa.
+- /review status puede cambiar etiquetas sin credencial adicional; mover tarjeta con ese comando requiere PROJECT_TOKEN opcional. El flujo de PR vinculado/cierre/reapertura usa reglas nativas sin ese secreto.
+- Los servicios nuevos aún no tienen aplicación Java ni configuración productiva; las issues de implementación siguen abiertas.
