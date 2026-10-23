@@ -63,7 +63,7 @@ jobs:
       DB_USER: shipment_ci
       DB_PASSWORD: integration-only
       DB_ROOT_PASSWORD: integration-root-only
-      SMOKE_FIXTURE_DIR: ${{ runner.temp }}/shipment-contracts
+      SMOKE_FIXTURE_DIR: /tmp/shipment-contracts
     steps:
       - name: Obtener código
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
