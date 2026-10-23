@@ -63,18 +63,21 @@ jobs:
       DB_USER: shipment_ci
       DB_PASSWORD: integration-only
       DB_ROOT_PASSWORD: integration-root-only
+      SMOKE_FIXTURE_DIR: ${{ runner.temp }}/shipment-contracts
     steps:
       - name: Obtener código
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Construir y levantar el proyecto completo
-        run: docker compose up --build --detach
+      - name: Preparar claves y contratos HTTP aislados
+        run: python3 .github/scripts/prepare_smoke.py
+      - name: Construir y levantar shipment con MySQL y dobles HTTP
+        run: docker compose -f compose.yaml -f .github/compose.smoke.yaml up --build --detach
       - name: Verificar el flujo HTTP completo
         run: python3 .github/scripts/smoke_test.py
       - name: Mostrar logs si hay errores
         if: failure()
-        run: docker compose logs --no-color --tail=200
+        run: docker compose -f compose.yaml -f .github/compose.smoke.yaml logs --no-color --tail=200
       - name: Eliminar contenedores y datos de prueba
         if: always()
-        run: docker compose down --volumes --remove-orphans
+        run: docker compose -f compose.yaml -f .github/compose.smoke.yaml down --volumes --remove-orphans
