@@ -14,11 +14,18 @@ import java.util.Map;
 public final class LocalShipmentApplication {
     private LocalShipmentApplication() { }
 
+    static SpringApplicationBuilder application(LocalDependencies dependencies) {
+        return new SpringApplicationBuilder(ShipmentServiceApplication.class).profiles("dev")
+                .properties("CONFIG_SERVER_URL=" + dependencies.url())
+                .initializers(context -> context.getEnvironment().getPropertySources().addFirst(
+                    new org.springframework.core.env.MapPropertySource("isolated-local-demo", dependencies.configuration())));
+    }
+
     public static void main(String[] args) throws Exception {
         var dependencies = new LocalDependencies();
         Runtime.getRuntime().addShutdownHook(new Thread(dependencies::close));
-        var context = new SpringApplicationBuilder(ShipmentServiceApplication.class)
-                .profiles("dev").properties("CONFIG_SERVER_URL=" + dependencies.url()).run(args);
+        var context = application(dependencies).run("--spring.application.name=shipment-service", "--spring.profiles.active=dev",
+                "--spring.config.import=configserver:" + dependencies.url());
         var customers = context.getBean(CustomerRepository.class);
         var a = customers.saveAndFlush(new Customer("Cliente demo A", "demo-a@example.test", "123"));
         var b = customers.saveAndFlush(new Customer("Cliente demo B", "demo-b@example.test", "456"));

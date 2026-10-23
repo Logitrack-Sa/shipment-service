@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Sprint2_Demo_Local" type="MavenRunConfiguration" factoryName="Maven">
+  <configuration default="false" name="Sprint2_Demo_H2" type="MavenRunConfiguration" factoryName="Maven">
     <MavenSettings>
       <option name="myRunnerParameters">
         <MavenRunnerParameters>
@@ -9,8 +9,7 @@
               <option value="--batch-mode" />
               <option value="--no-transfer-progress" />
               <option value="-Dspring-boot.run.main-class=com.logitrack.shipment.support.LocalShipmentApplication" />
-              <option value="-Dspring-boot.run.useTestClasspath=true" />
-              <option value="spring-boot:run" />
+              <option value="spring-boot:test-run" />
             </list>
           </option>
           <option name="profilesMap">
