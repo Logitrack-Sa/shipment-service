@@ -6,7 +6,7 @@ API de envíos con Java 25, Spring Boot 3.5.16, Spring Cloud 2025.0.3, JPA, MySQ
 
 ## Probar en IntelliJ
 
-[Configuraciones listas: Sprint2_Pruebas y Sprint2_Demo](docs/sprint2/INTELLIJ.md). La demo usa H2 volátil, claves efímeras y dobles HTTP; no toca datos existentes ni representa cuatro servicios reales.
+[Configuraciones listas: Sprint2_Pruebas_Local y Sprint2_Demo_Local](docs/sprint2/INTELLIJ.md). La demo usa H2 volátil, claves efímeras y dobles HTTP; no toca datos existentes ni representa cuatro servicios reales.
 
 ## Ejecutar
 

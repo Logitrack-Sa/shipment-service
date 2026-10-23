@@ -2,12 +2,12 @@
 
 Importar pom.xml con JDK25 y recargar Maven. El selector Run reconoce las configuraciones compartidas de .run/:
 
-- **Sprint2_Pruebas**: Maven verify con `-Dtest=!**/repository/**`. Ejecuta unitarias, regresión con H2, JWT real y Config/HTTP simulados. No necesita Docker ni el emisor de compañeros. El reporte Maven/JaCoCo queda en target/.
-- **Sprint2_Demo**: spring-boot:run con la clase de test LocalShipmentApplication y test classpath. Arranca shipment en http://localhost:8081/docs/ con H2 volátil y dos dobles HTTP locales. No usa la base del Sprint 1. Al detenerlo se pierden los datos. La clase y H2 no entran en la imagen productiva.
+- **Sprint2_Pruebas_Local**: Maven verify con `-Dtest=!**/repository/**`. Ejecuta unitarias, regresión con H2, JWT real y Config/HTTP simulados. No necesita Docker ni el emisor de compañeros. El reporte Maven/JaCoCo queda en target/.
+- **Sprint2_Demo_Local**: spring-boot:run con la clase de test LocalShipmentApplication y test classpath. Arranca shipment en http://localhost:8081/docs/ con H2 volátil y dos dobles HTTP locales. No usa la base del Sprint 1. Al detenerlo se pierden los datos. La clase y H2 no entran en la imagen productiva.
 
 La demo crea cinco identidades y JWT RS256 efímeros (10 minutos) en target/local-demo/session.json; no imprime tokens. Para probar desde el portal o Swagger, copiar un token de esa sesión. Reiniciar la demo para renovar la sesión. No subir ese archivo a Git.
 
-Con Sprint2_Demo ejecutándose, desde otra consola:
+Con Sprint2_Demo_Local ejecutándose, desde otra consola:
 
 ```shell
 python dev/smoke_demo.py

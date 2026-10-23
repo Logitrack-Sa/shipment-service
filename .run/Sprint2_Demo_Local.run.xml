@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Sprint2_Demo" type="MavenRunConfiguration" factoryName="Maven">
+  <configuration default="false" name="Sprint2_Demo_Local" type="MavenRunConfiguration" factoryName="Maven">
     <MavenSettings>
       <option name="myRunnerParameters">
         <MavenRunnerParameters>
@@ -16,6 +16,7 @@
           <option name="profilesMap">
             <map />
           </option>
+          <option name="cmdOptions" value="" />
         </MavenRunnerParameters>
       </option>
     </MavenSettings>
