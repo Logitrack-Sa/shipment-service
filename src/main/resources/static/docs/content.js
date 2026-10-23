@@ -11,6 +11,11 @@ export const icons = {
 };
 
 export const errorCodes = [
+  [401, "UNAUTHORIZED", "Se requiere un JWT válido de security-service."],
+  [403, "ACCESS_DENIED", "El rol o la pertenencia no permiten esta operación."],
+  [401, "COURIER_UNAUTHORIZED", "Courier rechazó la autenticación recibida."],
+  [403, "COURIER_FORBIDDEN", "Courier rechazó los permisos de la operación."],
+  [503, "COURIER_UNAVAILABLE", "No se pudo validar courier por caída, timeout o respuesta inválida."],
   [400, "VALIDATION_ERROR", "El cuerpo contiene campos que no cumplen las validaciones."],
   [400, "CONSTRAINT_VIOLATION", "Los parámetros de consulta no cumplen las restricciones."],
   [400, "TYPE_MISMATCH", "El UUID, estado u otro parámetro tiene un tipo inválido."],
@@ -27,7 +32,7 @@ export const errorCodes = [
 export const sections = {
   introduction: [["resources", "Una API, todo el recorrido"], ["first-request", "Tu primera solicitud"], ["conventions", "Convenciones de la API"], ["next-steps", "Continúa integrando"]],
   quickstart: [["integration-flow", "El flujo de integración"], ["fee", "Cómo se calcula la tarifa"], ["rules", "Antes de asignar"]],
-  reference: [["customers", "Clientes"], ["couriers", "Repartidores"], ["shipments", "Envíos"]],
+  reference: [["customers", "Clientes"], ["shipments", "Envíos"]],
   operation: [["parameters", "Parámetros"], ["request-body", "Cuerpo de la solicitud"], ["try-request", "Probar este endpoint"], ["responses", "Respuestas"]],
   models: [["model-fields", "Campos del modelo"], ["model-example", "Ejemplo JSON"]],
   errors: [["error-format", "Formato de respuesta"], ["error-codes", "Códigos y significados"], ["error-handling", "Cómo manejarlos"]]

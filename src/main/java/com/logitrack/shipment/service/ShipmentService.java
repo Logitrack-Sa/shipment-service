@@ -1,9 +1,9 @@
 package com.logitrack.shipment.service;
 
+import com.logitrack.shipment.security.ShipmentAccess;
 import com.logitrack.shipment.dto.CreateShipmentRequest;
 import com.logitrack.shipment.dto.ShipmentResponse;
 import com.logitrack.shipment.dto.PageResponse;
-import com.logitrack.shipment.entity.Courier;
 import com.logitrack.shipment.entity.Shipment;
 import com.logitrack.shipment.entity.ShipmentStatus;
 import com.logitrack.shipment.exception.BusinessRuleException;
@@ -14,7 +14,7 @@ import com.logitrack.shipment.exception.InvalidStateTransitionException;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
 import com.logitrack.shipment.exception.ShipmentCannotBeCancelledException;
 import com.logitrack.shipment.mapper.ShipmentMapper;
-import com.logitrack.shipment.repository.CourierRepository;
+import com.logitrack.shipment.client.CourierLookup;
 import com.logitrack.shipment.repository.ShipmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -34,23 +34,21 @@ public class ShipmentService {
     private final ShipmentCreator creator;
     private final TrackingCodeGenerator trackingCodes;
     private final ShipmentMapper mapper;
-    private final CourierRepository couriers;
+    private final CourierLookup couriers;
     private final ShipmentStatusRecorder statusRecorder;
+    private final ShipmentAccess access;
 
 
     @Transactional
     public ShipmentResponse assignCourier(UUID shipmentId, UUID courierId) {
+        access.requireAdmin();
         Shipment shipment = shipments.findById(shipmentId)
             .orElseThrow(() -> new ResourceNotFoundException("Envío", shipmentId));
-        Courier courier = couriers.findById(courierId)
-            .orElseThrow(() -> new ResourceNotFoundException("Repartidor", courierId));
-        if (!courier.isAvailable()) {
-            throw new CourierNotActiveException("El repartidor no está activo: " + courierId);
-        }
+        couriers.requireAvailable(courierId);
         if (shipment.getStatus() != ShipmentStatus.PENDIENTE) {
             throw new BusinessRuleException("Solo se puede asignar un repartidor a un envío pendiente");
         }
-        shipment.assignCourier(courier);
+        shipment.assignCourier(courierId);
         return mapper.toResponse(shipment);
     }
 
@@ -72,7 +70,9 @@ public class ShipmentService {
      */
     @Transactional
     public ShipmentResponse changeStatus(UUID shipmentId, ShipmentStatus target, String observation) {
-        return transition(findShipment(shipmentId), target, observation);
+        Shipment shipment = findShipment(shipmentId);
+        access.requireTransition(shipment, target);
+        return transition(shipment, target, observation);
     }
 
     /**
@@ -89,6 +89,7 @@ public class ShipmentService {
      */
     @Transactional
     public ShipmentResponse cancel(UUID shipmentId) {
+        access.requireAdmin();
         Shipment shipment = findShipment(shipmentId);
         if (shipment.getStatus() != ShipmentStatus.PENDIENTE) {
             throw new ShipmentCannotBeCancelledException(shipmentId, shipment.getStatus().name());
@@ -116,13 +117,10 @@ public class ShipmentService {
         }
 
         if (target == ShipmentStatus.EN_RUTA) {
-            Courier courier = shipment.getCourier();
-            if (courier == null) {
+            if (shipment.getCourierId() == null) {
                 throw new CourierNotAssignedException(shipment.getId());
             }
-            if (!courier.isAvailable()) {
-                throw new CourierNotActiveException(courier.getId());
-            }
+            couriers.requireActive(shipment.getCourierId());
         }
 
         shipment.changeStatusTo(target);
@@ -144,23 +142,27 @@ public class ShipmentService {
 
     @Transactional(readOnly = true)
     public ShipmentResponse findById(UUID id) {
-        return shipments.findById(id).map(mapper::toResponse)
-                .orElseThrow(() -> new ResourceNotFoundException("Envío", id));
+        Shipment shipment = findShipment(id);
+        access.requireRead(shipment);
+        return mapper.toResponse(shipment);
     }
 
     @Transactional(readOnly = true)
     public ShipmentResponse findByTrackingCode(String trackingCode) {
-        return shipments.findByTrackingCode(trackingCode).map(mapper::toResponse)
+        Shipment shipment = shipments.findByTrackingCode(trackingCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Envío", trackingCode));
+        access.requireRead(shipment);
+        return mapper.toResponse(shipment);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<ShipmentResponse> findAll(ShipmentStatus status, Pageable pageable) {
-        var page = status == null ? shipments.findAll(pageable) : shipments.findByStatus(status, pageable);
+        var page = shipments.findAll(access.scope(status), pageable);
         return PageResponse.from(page.map(mapper::toResponse));
     }
 
     public ShipmentResponse createShipment(CreateShipmentRequest request) {
+        access.requireCreate(request.customerId());
         for (int attempt = 0; attempt < MAX_TRACKING_ATTEMPTS; attempt++) {
             String code = trackingCodes.generate();
             if (shipments.existsByTrackingCode(code)) continue;

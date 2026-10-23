@@ -90,7 +90,7 @@ function renderPageIndex(category) {
 function searchEntries() {
   return [
     { label: "Introducción", route: "#introduction", detail: "Primeros pasos" },
-    { label: "Flujo de integración", route: "#quickstart", detail: "Cliente, repartidor, envío y asignación" },
+    { label: "Flujo de integración", route: "#quickstart", detail: "JWT, cliente, envío y asignación por REST" },
     { label: "Códigos de error", route: "#errors", detail: "Respuestas HTTP y errores del negocio" },
     ...endpoints.map(endpoint => ({ label: endpoint.label, route: operationHref(endpoint), detail: `${endpoint.method.toUpperCase()} ${endpoint.path}` })),
     ...Object.keys(specification?.components.schemas || {}).map(name => ({ label: name, route: `#models/${encodeURIComponent(name)}`, detail: "Modelo de datos" }))
@@ -160,7 +160,7 @@ async function submitRequest(event) {
     form.setAttribute("aria-busy", "true");
     const started = performance.now();
     let response;
-    try { response = await sendRequest(operation, url, body, controller.signal); }
+    try { response = await sendRequest(operation, url, body, controller.signal, form.elements.namedItem("bearer-token").value.trim().replace(/^Bearer\s+/i, "")); }
     finally { clearTimeout(timeout); }
     if (!form.isConnected) return;
     const elapsed = Math.round(performance.now() - started);
