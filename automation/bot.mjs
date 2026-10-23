@@ -81,14 +81,38 @@ export async function syncPull(github, number) {
   }
 }
 
+export function safeDiagnostic(error) {
+  if (error?.code === 'PERMISSION_LOOKUP_FAILED') return 'PERMISSION_LOOKUP_FAILED';
+  const message = typeof error?.message === 'string' ? error.message : '';
+  const http = message.match(/^GitHub (?:GET|POST|PATCH|PUT) \S+: HTTP ([45]\d{2})$/);
+  if (http) return `GITHUB_HTTP_${http[1]}`;
+  if (message.startsWith('La consulta a la IA falló') || message.startsWith('La IA excedió')) return 'COPILOT_FAILED';
+  return 'REVIEW_FAILED';
+}
+
+export async function trustedActor(github, login) {
+  if (!login) return false;
+  try {
+    const { permission } = await github.get(`/collaborators/${encodeURIComponent(login)}/permission`);
+    return ['admin','maintain','write'].includes(permission);
+  } catch (error) {
+    // 404 significa que no hay un colaborador consultable; otros fallos son operativos.
+    if (typeof error?.message === 'string' && error.message.endsWith(': HTTP 404')) return false;
+    const failure = new Error('No se pudo verificar el permiso del actor; reintentar la ejecución.');
+    failure.code = 'PERMISSION_LOOKUP_FAILED';
+    throw failure;
+  }
+}
+
 export async function runBot({ github, event, eventName, ask = askModel }) {
   const number = event.issue?.number || event.pull_request?.number || Number(event.inputs?.number);
   if (!Number.isSafeInteger(number) || number < 1) throw new Error('Número de issue/PR inválido.');
   let review = false;
   if (eventName === 'issue_comment') {
-    if (event.comment?.user?.type === 'Bot' || !TRUSTED.includes(event.comment?.author_association)) return;
+    if (event.comment?.user?.type === 'Bot') return;
     const parsed = command(event.comment?.body);
     if (!parsed) return;
+    if (!await trustedActor(github, event.comment?.user?.login)) return;
     if (parsed[0] === 'status') {
       const item = await github.get(`/issues/${number}`);
       if (item.pull_request || item.state !== 'open') return;
@@ -105,10 +129,14 @@ export async function runBot({ github, event, eventName, ask = askModel }) {
     return;
   } else if (eventName === 'pull_request_target') {
     const pull = await github.get(`/pulls/${number}`);
-    if (!TRUSTED.includes(pull.author_association)) return;
+    if (pull.user?.type === 'Bot') return;
+    if (!await trustedActor(github, pull.user?.login)) {
+      console.log('Revisión omitida: autor sin permiso de escritura verificado.'); return;
+    }
     await syncPull(github, number);
     review = ['opened','reopened','synchronize','ready_for_review','edited'].includes(event.action);
   } else if (eventName === 'workflow_dispatch') {
+    if (!await trustedActor(github, event.sender?.login)) return;
     const item = await github.get(`/issues/${number}`);
     if (!item.pull_request) throw new Error('La revisión manual requiere un PR.');
     review = true;
@@ -117,7 +145,8 @@ export async function runBot({ github, event, eventName, ask = askModel }) {
   try {
     await syncPull(github, number);
     return await reviewPull(github, number, ask);
-  } catch {
+  } catch (error) {
+    console.error(safeDiagnostic(error));
     await github.replaceLabels(number, 'ai:', ['ai:unavailable']);
     await github.comment(number, '<!-- ai-configuration -->',
       '## Revisión IA no disponible\n\nNo se completó el análisis; no equivale a una aprobación. Revisar acceso Copilot/políticas de la organización o secreto COPILOT_GITHUB_TOKEN. ' +
@@ -133,11 +162,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     github = new GitHub();
     await runBot({ github, event, eventName: process.env.GITHUB_EVENT_NAME });
   } catch (error) {
-    console.error(error.message); process.exitCode = 1;
+    console.error(safeDiagnostic(error)); process.exitCode = 1;
   } finally {
     if (github && github.changedStatuses.size) {
       if (!process.env.PROJECT_TOKEN) {
-        console.log('::warning::Etiquetas actualizadas; falta PROJECT_TOKEN para sincronizar las tarjetas del Project 2.');
+        console.log('Etiquetas actualizadas. El flujo normal del tablero usa automatizaciones nativas; /review status solo mueve tarjetas si se configura PROJECT_TOKEN.');
       } else {
         try {
           const projects = new ProjectSync(new GitHub({ token: process.env.PROJECT_TOKEN }), process.env.PROJECT_NUMBER || '2');
