@@ -20,6 +20,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(addFilters = false)
+@org.springframework.test.context.ActiveProfiles("test")
 @WebMvcTest(ShipmentController.class)
 class ShipmentControllerTest {
     @Autowired

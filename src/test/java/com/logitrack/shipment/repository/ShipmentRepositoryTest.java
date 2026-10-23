@@ -42,7 +42,7 @@ class ShipmentRepositoryTest extends AbstractMySqlRepositoryTest {
             assertThat(shipment.getCustomer().getName()).isEqualTo("Customer");
             assertThat(shipment.getOrigin().getCity()).isEqualTo("Jujuy");
             assertThat(shipment.getDestination().getCity()).isEqualTo("Palpalá");
-            assertThat(shipment.getCourier()).isNull();
+            assertThat(shipment.getCourierId()).isNull();
         });
         assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
     }

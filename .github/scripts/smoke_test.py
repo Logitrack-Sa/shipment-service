@@ -1,5 +1,6 @@
 """Verifica la aplicación en una base de pruebas descartable, sin dependencias extra."""
 
+from pathlib import Path
 import json
 import os
 import time
@@ -8,13 +9,16 @@ from decimal import Decimal
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+TOKEN = None
 BASE_URL = os.environ.get("SMOKE_BASE_URL", "http://localhost:8080").rstrip("/")
 
 
 def request(path, method="GET", data=None, status=200):
     body = None if data is None else json.dumps(data).encode()
-    req = Request(BASE_URL + path, data=body, method=method,
-                  headers={"Content-Type": "application/json"})
+    headers = {"Content-Type": "application/json"}
+    if TOKEN:
+        headers["Authorization"] = "Bearer " + TOKEN
+    req = Request(BASE_URL + path, data=body, method=method, headers=headers)
     try:
         response = urlopen(req, timeout=10)
     except HTTPError as error:
@@ -40,10 +44,13 @@ def wait_for_application():
 
 
 def main():
+    global TOKEN
     wait_for_application()
+    request("/api/v1/shipments", status=401)
+    TOKEN = (Path(os.environ["SMOKE_FIXTURE_DIR"]) / "token.txt").read_text().strip()
     paths = request("/v3/api-docs")["paths"]
     assert all(path in paths for path in (
-        "/api/v1/customers", "/api/v1/couriers", "/api/v1/shipments",
+        "/api/v1/customers", "/api/v1/shipments",
         "/api/v1/shipments/{id}/courier"))
     assert "LogiTrack Docs" in request("/swagger-ui.html")
     assert "LogiTrack Docs" in request("/docs/")
@@ -59,11 +66,8 @@ def main():
     assert request("/api/v1/customers", "POST", customer_data, 409)["code"] == "DUPLICATE_RESOURCE"
     request("/api/v1/customers", "POST", {}, 400)
 
-    courier = request("/api/v1/couriers", "POST",
-                      {"name": "Repartidor CI", "vehicleType": "MOTO"}, 201)
-    courier_path = f"/api/v1/couriers/{courier['id']}"
-    assert request(courier_path)["status"] == "ACTIVO"
-    assert request("/api/v1/couriers?status=ACTIVO")["content"]
+    assert not any(path.startswith("/api/v1/couriers") for path in paths)
+    courier = {"id": "20000000-0000-0000-0000-000000000001"}
 
     address = {"street": "Bolivia", "number": "1239", "city": "Jujuy", "postalCode": "4600"}
     shipment = request("/api/v1/shipments", "POST", {
@@ -80,12 +84,24 @@ def main():
     assert assigned["courierId"] == courier["id"]
     assert request(shipment_path)["courierId"] == courier["id"]
 
-    request(courier_path + "/status", "PATCH", {"status": "INACTIVO"})
-    error = request(shipment_path + "/courier", "PUT", {"courierId": courier["id"]}, 422)
+    error = request(shipment_path + "/courier", "PUT",
+                    {"courierId": "20000000-0000-0000-0000-000000000002"}, 422)
     assert error["code"] == "COURIER_NOT_ACTIVE"
     assert request(f"/api/v1/shipments/{uuid.uuid4()}", status=404)["code"] == "RESOURCE_NOT_FOUND"
     request("/api/v1/shipments?size=0", status=400)
-    print("OK: health, OpenAPI, Swagger, clientes, repartidores, tarifa, envíos, asignación y errores")
+    for suffix, expected, code in [(3, 404, "RESOURCE_NOT_FOUND"), (4, 401, "COURIER_UNAUTHORIZED"),
+                                   (5, 403, "COURIER_FORBIDDEN"), (6, 503, "COURIER_UNAVAILABLE"),
+                                   (7, 503, "COURIER_UNAVAILABLE"), (8, 503, "COURIER_UNAVAILABLE"),
+                                   (9, 422, "COURIER_NOT_ACTIVE")]:
+        invalid = f"20000000-0000-0000-0000-{suffix:012d}"
+        assert request(shipment_path + "/courier", "PUT", {"courierId": invalid}, expected)["code"] == code
+        assert request(shipment_path)["courierId"] == courier["id"]
+        assert len(request(shipment_path + "/history")) == 1
+    request(shipment_path + "/status", "PATCH", {"status": "EN_RUTA"})
+    request(shipment_path + "/status", "PATCH", {"status": "ENTREGADO"})
+    assert len(request(shipment_path + "/history")) == 3
+    assert request(shipment_path)["courierId"] == courier["id"]
+    print("OK: health, OpenAPI, Swagger, clientes, courier REST simulado, JWT real, configuración remota, tarifa, estados e historial")
 
 
 if __name__ == "__main__":

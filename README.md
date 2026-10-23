@@ -2,133 +2,46 @@
 
 [![CI](https://github.com/Logitrack-Sa/shipment-service/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Logitrack-Sa/shipment-service/actions/workflows/ci.yml)
 
-API de gestión de envíos. Java 25, Spring Boot 3.5 y Maven Wrapper.
+API de envíos con Java 25, Spring Boot 3.5.16, Spring Cloud 2025.0.3, JPA, MySQL y Flyway. Conserva tarifa, tracking, estados, cancelación y auditoría del Sprint 1. Courier es un UUID externo, consultado por REST; sus datos se administran en courier-service.
 
-## Desarrollo
+## Ejecutar
 
-1. Instalar JDK 25 y configurar `JAVA_HOME`.
-2. Abrir `pom.xml` en IntelliJ IDEA como proyecto Maven; seleccionar JDK 25.
-3. Configurar `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`
-   según `.env.example`. Spring no carga `.env` automáticamente: definir las
-   variables en la configuración de ejecución del IDE o en el entorno.
-4. Con MySQL disponible: `./mvnw spring-boot:run` (`.\mvnw.cmd` en Windows).
+Abrir pom.xml en IntelliJ con JDK25. Los perfiles dev/prod requieren Config Server, MySQL propio y la clave pública RSA del emisor JWT. Configurar las variables indicadas en [arranque y configuración](docs/sprint2/CONFIGURACION-SHIPMENT.md); ejecutar ShipmentServiceApplication o `./mvnw spring-boot:run` (`.\mvnw.cmd` en Windows). El puerto llega del servidor de configuración; la plantilla propone 8081.
 
-La aplicación expone `/actuator/health`, `/swagger-ui.html` y `/v3/api-docs`.
-Hibernate valida el esquema; las migraciones de MySQL se entregan en #27.
-La configuración bancaria del ejemplo anterior se retiró del servicio de envíos.
+El Compose básico del Sprint 1 todavía no es la entrega distribuida; Dockerfile y Compose finales se trabajan en #58/#64. El override `.github/compose.smoke.yaml` existe únicamente para CI con dependencias HTTP simuladas.
 
-El Compose levanta MySQL 8.4 y la aplicación: copiar `.env.example` a `.env`,
-elegir contraseñas locales y ejecutar `docker compose up --build -d`.
-La API queda en `http://localhost:8080` y MySQL en el puerto local `DB_PORT`
-(3308 si no está definido). El mismo valor sirve para conectarse desde el IDE.
-La conexión entre la aplicación y MySQL exige TLS (`sslMode=REQUIRED`).
-Este entorno de desarrollo crea y actualiza el esquema con Hibernate;
-las migraciones versionadas siguen pendientes en #27.
+## Seguridad y API
+
+JWT RS256 validado localmente: firma, issuer, audience, expiración, iat, kid y roles. Sin llamadas al emisor por solicitud. ADMIN administra; CLIENTE crea/consulta sus envíos; REPARTIDOR consulta y cambia estados de los asignados. Cancelación y asignación son administrativas. Listados filtran por pertenencia antes de paginar. [Matriz de permisos y contratos](docs/sprint2/CONTRATOS-V1.md).
+
+Documentación pública, sin datos de negocio:
+- `/docs/`: portal con campo JWT por solicitud, sin persistencia del token.
+- `/docs/explorer.html`: Swagger con Authorize → Bearer.
+- `/v3/api-docs`: OpenAPI; `/actuator/health`: estado mínimo.
+
+| Método | Ruta | Operación |
+|---|---|---|
+| POST | /api/v1/customers | Registrar cliente (ADMIN) |
+| GET | /api/v1/customers y /{id} | Consultar clientes (ADMIN) |
+| POST | /api/v1/shipments | Registrar envío |
+| GET | /api/v1/shipments | Página propia; filtro status opcional |
+| GET | /api/v1/shipments/{id} | Detalle autorizado |
+| GET | /api/v1/shipments/tracking/{trackingCode} | Seguimiento autorizado |
+| GET | /api/v1/shipments/{id}/history | Historial autorizado |
+| PUT | /api/v1/shipments/{id}/courier | Asignar UUID de courier disponible |
+| PATCH | /api/v1/shipments/{id}/status | Transición válida |
+| POST | /api/v1/shipments/{id}/cancellation | Cancelar PENDIENTE |
+
+Tarifa = base + max(pesoKg, ancho×alto×largo/divisor) × precioPorKg. BigDecimal y redondeo final HALF_UP a dos decimales. Parámetros externos; ejemplo base1000, precio250, divisor5000: 2,5kg y 30×20×40cm →2200. Tracking `LT-` +10 caracteres seguros; restricción única y reintentos únicamente por colisión. Envío e historial se confirman juntos.
 
 ## Pruebas
 
-```shell
-./mvnw verify
-```
+`./mvnw verify` ejecuta tests unitarios, integración, JWT real, HTTP simulado y migraciones contra MySQL/Testcontainers; requiere Docker. JaCoCo: target/site/jacoco/index.html. [Comandos y límites sin Docker](docs/sprint2/CONFIGURACION-SHIPMENT.md).
 
-Las pruebas unitarias no requieren red ni base de datos. El perfil `test` usa H2
-solo para contexto y persistencia; no reemplaza MySQL/Testcontainers de #30.
-JaCoCo genera `target/site/jacoco/index.html`.
+CI prueba H2, repite con MySQL, verifica V1→V2 con datos anteriores y arranca shipment/MySQL en contenedores. El smoke usa dobles HTTP de Config/Courier y claves RSA efímeras; la integración con los cuatro servicios reales queda para #61.
 
-La CI ejecuta la suite con Temurin 25 y vuelve a probar alta, historial,
-colisiones y rollback contra un MySQL 8.4 efímero. También verifica health,
-Swagger y OpenAPI por HTTP. Ese smoke test crea el esquema únicamente en su
-base aislada; la validación de migraciones productivas sigue en #27/#30.
+## Trabajo del Sprint 2
 
-La suite unitaria puede ejecutarse sin BD ni red, con las dependencias ya
-descargadas: `./mvnw -o -Dtest=ShipmentServiceTest,FeeCalculatorTest test`.
+[Tablero](https://github.com/orgs/Logitrack-Sa/projects/2), [reparto](docs/sprint2/BACKLOG.md), [alcance PDF](docs/sprint2/ALCANCE.md), [workflow](docs/sprint2/WORKFLOW.md), [migración courier sin pérdida](docs/sprint2/MIGRACION-COURIER.md). No modificar migraciones aplicadas ni compartir tablas/entidades con otros servicios.
 
-## Convenciones
-
-- Paquete raíz: `com.logitrack.shipment`. Capas: `controller`, `service`,
-  `repository`, `entity`, `dto`, `mapper`, `exception` y `config`.
-- Clases y paquetes en inglés; estados del negocio en español.
-- Endpoints bajo `/api/v1`, con sustantivos plurales.
-- DTOs inmutables, validación de entrada y mappers manuales breves. La API no
-  expone entidades JPA ni `Page` de Spring.
-- Inyección por constructor; transacciones en servicios; lecturas con
-  `readOnly = true`; dinero con `BigDecimal`.
-- Ramas `feature/<issue>-descripcion`, `chore/...`, `test/...` o `docs/...`.
-- Commits Conventional Commits breves, con descripción en español.
-- Cambios mediante PR con `Closes #N` y aprobación de otro integrante.
-  Nadie publica directamente en `main`.
-
-## Modelo y decisiones
-
-Las entidades usan UUID y auditoría compartida. `courier` es opcional hasta la
-asignación; los cambios de estado requieren historial persistido. Peso y medidas
-usan `BigDecimal` para evitar errores binarios en el cálculo de tarifa.
-
-El documento `doc/Issue1.md` corresponde al ejemplo anterior; el alcance vigente
-está en las issues #12–#33 de GitHub.
-
-## Documentación de la API
-
-El servicio cuenta con documentación interactiva basada en OpenAPI 3 (Springdoc). Con la aplicación en ejecución, puedes acceder a:
-
-- **LogiTrack Docs**: [http://localhost:8080/docs/](http://localhost:8080/docs/). También disponible en `/swagger-ui.html` y `/swagger-ui/index.html`.
-- **Explorador Swagger**: [http://localhost:8080/docs/explorer.html](http://localhost:8080/docs/explorer.html)
-- **OpenAPI JSON**: `http://localhost:8080/v3/api-docs`
-
-El portal organiza clientes, repartidores y envíos con búsqueda, modelos, errores
-y un flujo de integración. Lee los parámetros y esquemas desde OpenAPI y permite
-editar solicitudes y consultar sus respuestas reales. Las operaciones que crean
-o modifican datos se ejecutan únicamente al pulsar **Enviar solicitud**.
-
-Los recursos están en `src/main/resources/static/docs`, sin compilación frontend
-ni servicios externos. Si cambias el puerto del servicio, usa ese mismo puerto
-en las URLs anteriores.
-
-## Tarifa propuesta
-
-`pesoVolumetricoKg = largoCm * anchoCm * altoCm / divisor`
-
-`tarifa = base + max(pesoRealKg, pesoVolumetricoKg) * precioPorKg`
-
-La fórmula es una propuesta del equipo pendiente de confirmación del docente.
-Importes en pesos; peso en kg; medidas en cm. Se usa BigDecimal y se redondea
-solo el resultado final a dos decimales con HALF_UP.
-
-| Propiedad | Default | Variable de entorno |
-| --- | --- | --- |
-| `logitrack.fee.base` | `1000.00` | `FEE_BASE` |
-| `logitrack.fee.price-per-kg` | `250.00` | `FEE_PRICE_PER_KG` |
-| `logitrack.fee.volumetric-divisor` | `5000` | `FEE_VOLUMETRIC_DIVISOR` |
-
-Ejemplo: 2,5 kg y 30 × 20 × 40 cm tienen peso facturable de 4,8 kg y tarifa
-de 2200,00. Base y precio no negativos; divisor, peso y medidas positivos.
-Cambiar la configuración requiere reiniciar la aplicación.
-
-## Envíos
-
-| Método | Ruta | Resultado |
-| --- | --- | --- |
-| POST | `/api/v1/shipments` | 201, Location y envío con tarifa e historial inicial |
-| GET | `/api/v1/shipments/{id}` | Detalle por UUID |
-| GET | `/api/v1/shipments/tracking/{trackingCode}` | Detalle por seguimiento |
-| GET | `/api/v1/shipments?status=PENDIENTE&page=0&size=20` | Página, con estado opcional |
-
-La paginación empieza en 0, admite entre 1 y 100 elementos y ordena por fecha
-de creación descendente y UUID. La respuesta contiene `content`, `page`, `size`,
-`totalElements` y `totalPages`. Los datos inválidos devuelven 400; un recurso
-inexistente, 404; un conflicto de persistencia, 409. Los errores incluyen
-`timestamp`, `status`, `error`, `code`, `message`, `path` y `details`.
-
-El tracking usa SecureRandom (`LT-` y diez caracteres alfanuméricos mayúsculos),
-preconsulta de existencia e índice único en BD. Cada intento de alta es una
-transacción independiente; se reintenta únicamente una colisión de tracking y
-se aborta después de cinco intentos. Envío e historial se confirman juntos.
-
-Las entidades básicas de cliente/repartidor, el contrato de errores y el
-recorder de historial permiten integrar los envíos. Las APIs de clientes y
-repartidores (#14/#15), los errores de estados (#17) y la consulta del historial
-(#21) continúan en sus issues correspondientes.
-
-## Sprint 2
-
-[Tablero y reparto](https://github.com/orgs/Logitrack-Sa/projects/2) · [Contratos, backlog y workflow](docs/sprint2/README.md). La implementación del Sprint 1 se conserva; el Sprint 2 está organizado en repositorios e issues independientes.
+Inyección por constructor, DTOs inmutables, validación, transacciones en servicios y errores sin detalles internos. Ramas por tarea, commits breves en español, PR vinculado y revisión de otro integrante antes de main. La IA comenta hallazgos; no reemplaza CI ni aprobación humana.

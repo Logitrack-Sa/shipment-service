@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-class ShipmentCreationIntegrationTest {
+class ShipmentCreationIntegrationTest extends com.logitrack.shipment.support.JwtTestSupport {
     @Autowired
     private TestRestTemplate http;
     @Autowired
@@ -47,6 +47,11 @@ class ShipmentCreationIntegrationTest {
 
     @BeforeEach
     void clearDatabase() {
+        var jwt = org.springframework.security.oauth2.jwt.Jwt.withTokenValue("unit-admin").header("alg", "RS256")
+                .subject("00000000-0000-0000-0000-000000000001").claim("roles", java.util.List.of("ADMIN")).build();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken(jwt,
+                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))));
         history.deleteAll();
         shipments.deleteAll();
         customers.deleteAll();
@@ -121,6 +126,9 @@ class ShipmentCreationIntegrationTest {
         assertThat(history.count()).isEqualTo(2);
         assertThat(history.findByShipmentIdOrderByChangedAtAsc(created.id())).hasSize(1);
     }
+
+    @org.junit.jupiter.api.AfterEach
+    void clearSecurityContext() { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
 
     private CreateShipmentRequest requestForExistingCustomer() {
         var customer = customers.saveAndFlush(new Customer("Cliente", "cliente@test.com", "3881234567"));

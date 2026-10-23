@@ -2,7 +2,6 @@ const methods = new Set(["get", "post", "put", "patch", "delete", "head", "optio
 
 export const groups = [
   { key: "customers", label: "Clientes", description: "Registra y consulta a quienes confían sus envíos a LogiTrack.", icon: "users" },
-  { key: "couriers", label: "Repartidores", description: "Gestiona repartidores y su disponibilidad para recibir asignaciones.", icon: "route" },
   { key: "shipments", label: "Envíos", description: "Registra paquetes, calcula tarifas y consulta cada envío por su tracking.", icon: "box" }
 ];
 
@@ -129,17 +128,17 @@ export function requestUrl(operation, entries, useExamples = false) {
 
 export function curl(operation, url, body) {
   const quote = value => `'${value.replace(/'/g, `'\\''`)}'`;
-  const lines = [`curl --request ${operation.method.toUpperCase()} ${quote(url)}`, "  --header 'Accept: application/json'"];
+  const lines = [`curl --request ${operation.method.toUpperCase()} ${quote(url)}`, "  --header 'Accept: application/json'", "  --header 'Authorization: Bearer <JWT>'"];
   if (body !== undefined) lines.push("  --header 'Content-Type: application/json'", `  --data ${quote(JSON.stringify(body, null, 2))}`);
   return lines.join(" \\\n");
 }
 
-export async function sendRequest(operation, url, body, signal) {
+export async function sendRequest(operation, url, body, signal, token = "") {
   const target = new URL(url);
   if (target.origin !== location.origin || !target.pathname.startsWith("/api/v1/")) throw new Error("Solo se pueden probar rutas de esta API.");
   const response = await fetch(target, {
     method: operation.method.toUpperCase(), signal,
-    headers: { Accept: "application/json", ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
+    headers: { Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {})
   });
   const text = await response.text();

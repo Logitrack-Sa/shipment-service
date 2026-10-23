@@ -1,0 +1,25 @@
+# Plantilla para config-repo; reemplazar por los valores públicos de cada ambiente.
+server:
+  port: 8081
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+logging:
+  level:
+    com.logitrack: INFO
+logitrack:
+  fee:
+    base: 1000.00
+    price-per-kg: 250.00
+    volumetric-divisor: 5000
+  courier:
+    base-url: ${COURIER_SERVICE_URL}
+    connect-timeout: 2s
+    read-timeout: 3s
+  security:
+    public-key-location: ${JWT_PUBLIC_KEY_LOCATION}
+    key-id: ${JWT_KEY_ID}
+    issuer: ${JWT_ISSUER}
+    audience: ${JWT_AUDIENCE}

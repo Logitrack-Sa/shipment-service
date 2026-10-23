@@ -1,6 +1,8 @@
 # Contratos iniciales del Sprint 2
 
-Estado: propuesta inicial operativa para trabajo paralelo. Cada propietario valida el contrato en su issue; cambios incompatibles se acuerdan por PR antes de integrar. No significa que el servicio esté implementado.
+Implementación de shipment: [contratos y fixtures v1](CONTRATOS-V1.md), [configuración](CONFIGURACION-SHIPMENT.md) y [migración](MIGRACION-COURIER.md).
+
+Estado de los servicios externos: propuesta inicial operativa para trabajo paralelo. Cada propietario valida el contrato en su issue; cambios incompatibles se acuerdan por PR antes de integrar. No significa que el servicio esté implementado.
 
 ## Base verificada
 shipment-service conserva Java25, Boot3.5.16, JPA, MySQL, Flyway, tarifa volumétrica, tracking, estados, cancelación y auditoría del Sprint1. Se extrae CourierController/Service/Repository/Mapper, Courier y sus DTOs; no se reescribe el dominio de envíos. No modificar migraciones ya aplicadas.
