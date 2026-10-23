@@ -1,7 +1,5 @@
 """Verifica la aplicación en una base de pruebas descartable, sin dependencias extra."""
 
-import base64
-import subprocess
 from pathlib import Path
 import json
 import os
@@ -49,14 +47,7 @@ def main():
     global TOKEN
     wait_for_application()
     request("/api/v1/shipments", status=401)
-    encode = lambda data: base64.urlsafe_b64encode(json.dumps(data).encode()).rstrip(b"=")
-    message = encode({"alg": "RS256", "kid": "ci-ephemeral"}) + b"." + encode({
-        "sub": str(uuid.uuid4()), "roles": ["ADMIN"], "iss": "https://issuer.test",
-        "aud": ["shipment-service", "courier-service"], "iat": int(time.time()), "exp": int(time.time()) + 600})
-    key = Path(os.environ["SMOKE_FIXTURE_DIR"]) / "private.pem"
-    signature = subprocess.run(["openssl", "dgst", "-sha256", "-sign", str(key)], input=message,
-                               capture_output=True, check=True).stdout
-    TOKEN = (message + b"." + base64.urlsafe_b64encode(signature).rstrip(b"=")).decode()
+    TOKEN = (Path(os.environ["SMOKE_FIXTURE_DIR"]) / "token.txt").read_text().strip()
     paths = request("/v3/api-docs")["paths"]
     assert all(path in paths for path in (
         "/api/v1/customers", "/api/v1/shipments",
@@ -98,6 +89,14 @@ def main():
     assert error["code"] == "COURIER_NOT_ACTIVE"
     assert request(f"/api/v1/shipments/{uuid.uuid4()}", status=404)["code"] == "RESOURCE_NOT_FOUND"
     request("/api/v1/shipments?size=0", status=400)
+    for suffix, expected, code in [(3, 404, "RESOURCE_NOT_FOUND"), (4, 401, "COURIER_UNAUTHORIZED"),
+                                   (5, 403, "COURIER_FORBIDDEN"), (6, 503, "COURIER_UNAVAILABLE"),
+                                   (7, 503, "COURIER_UNAVAILABLE"), (8, 503, "COURIER_UNAVAILABLE"),
+                                   (9, 422, "COURIER_NOT_ACTIVE")]:
+        invalid = f"20000000-0000-0000-0000-{suffix:012d}"
+        assert request(shipment_path + "/courier", "PUT", {"courierId": invalid}, expected)["code"] == code
+        assert request(shipment_path)["courierId"] == courier["id"]
+        assert len(request(shipment_path + "/history")) == 1
     request(shipment_path + "/status", "PATCH", {"status": "EN_RUTA"})
     request(shipment_path + "/status", "PATCH", {"status": "ENTREGADO"})
     assert len(request(shipment_path + "/history")) == 3
