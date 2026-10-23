@@ -1,0 +1,15 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Sprint2_Pruebas" type="MavenRunConfiguration" factoryName="Maven">
+    <MavenSettings>
+      <option name="myRunnerParameters">
+        <MavenRunnerParameters>
+          <option name="cmdOptions" value="--batch-mode --no-transfer-progress -Dtest=!**/repository/**" />
+          <option name="workingDirPath" value="$PROJECT_DIR$" />
+          <option name="goals"><list><option value="verify" /></list></option>
+          <option name="profilesMap"><map /></option>
+        </MavenRunnerParameters>
+      </option>
+    </MavenSettings>
+    <method v="2" />
+  </configuration>
+</component>
