@@ -53,7 +53,7 @@ Estas ejecuciones verifican acceso y devoluciones del modelo por repositorio. No
 
 | Repositorio | Ejecución verificada | SHA revisado | Resultado del workflow |
 |---|---|---|---|
-| shipment-service | [Actions 39912101208](https://github.com/Logitrack-Sa/shipment-service/actions/runs/39912101208) | `300f6c7eb74d` | success |
+| shipment-service | [Actions 39912101208](https://github.com/Logitrack-Sa/shipment-service/actions/runs/39912101208) | `212aed8562a5` | success |
 | courier-service | [Actions 39911299720](https://github.com/Logitrack-Sa/courier-service/actions/runs/39911299720) | `54773f068337` | success |
 | security-service | [Actions 39911305489](https://github.com/Logitrack-Sa/security-service/actions/runs/39911305489) | `21d667b9f1a6` | success |
 | config-server | [Actions 39911312638](https://github.com/Logitrack-Sa/config-server/actions/runs/39911312638) | `12b27d14f05e` | success |
