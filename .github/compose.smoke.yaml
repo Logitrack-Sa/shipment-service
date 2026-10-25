@@ -14,6 +14,10 @@ services:
       timeout: 2s
       retries: 20
   shipment-service:
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     environment:
       SPRING_PROFILES_ACTIVE: dev
       CONFIG_SERVER_URL: http://contract-fixture:8765

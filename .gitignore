@@ -5,3 +5,6 @@ target/
 .env
 .DS_Store
 .mvn/wrapper/maven-wrapper.jar
+
+__pycache__/
+*.pyc

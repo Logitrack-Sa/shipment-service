@@ -46,6 +46,8 @@ jobs:
           cache: maven
       - name: Verificar dobles HTTP de CI
         run: python3 -m unittest discover -s .github/scripts -p test_contract_fixture.py
+      - name: Verificar harness distribuido con dobles
+        run: python3 -m unittest discover -s integration -p test_harness.py
       - name: Compilar y ejecutar la suite
         run: ./mvnw --batch-mode --no-transfer-progress clean verify
       - name: Ejecutar toda la suite con MySQL
@@ -75,6 +77,8 @@ jobs:
         run: python3 .github/scripts/prepare_smoke.py
       - name: Construir y levantar shipment con MySQL y dobles HTTP
         run: docker compose -f compose.yaml -f .github/compose.smoke.yaml up --build --detach
+      - name: Comprobar usuario sin privilegios
+        run: test "$(docker compose -f compose.yaml -f .github/compose.smoke.yaml exec -T shipment-service id -u)" = "10001"
       - name: Verificar el flujo HTTP completo
         run: python3 .github/scripts/smoke_test.py
       - name: Mostrar logs si hay errores
