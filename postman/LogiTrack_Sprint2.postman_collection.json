@@ -38,24 +38,17 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Generación de identificador único de ejecución para evitar colisiones",
-                  "const runId = Date.now().toString().slice(-6);",
-                  "pm.environment.set(\"run_id\", runId);",
-                  "pm.environment.set(\"unique_customer_email\", `cliente_${runId}@logitrack.com`);",
-                  "pm.environment.set(\"unique_customer_name\", `Cliente Test ${runId}`);",
-                  "pm.environment.set(\"unique_courier_name\", `Repartidor ${runId}`);",
-                  "pm.environment.set(\"unique_username_cliente\", `user_cli_${runId}`);",
-                  "console.log(`[SETUP] Ejecución inicializada con run_id: ${runId}`);",
-                  "",
-                  "// Limpieza de variables dinámicas de ejecuciones previas",
-                  "const varsToReset = [",
-                  "  \"customer_id\", \"courier_id_activo\", \"courier_id_inactivo\",",
-                  "  \"shipment_id_admin\", \"tracking_code_admin\",",
-                  "  \"shipment_id_cliente\", \"tracking_code_cliente\",",
-                  "  \"shipment_id_cancelable\", \"shipment_id_asignado\",",
-                  "  \"shipment_id_en_ruta\", \"shipment_id_entregado\", \"shipment_id_cancelado\"",
-                  "];",
-                  "varsToReset.forEach(v => pm.environment.unset(v));"
+                  "if (!pm.environment.get(\"admin_username\") || !pm.environment.get(\"admin_password\")) throw new Error(\"Configurar credenciales ADMIN del entorno descartable\");",
+                  "const runId = pm.variables.replaceIn('{{$randomUUID}}').replace(/-/g, '');",
+                  "['admin_token','cliente_token','repartidor_token','user_id_cliente','user_id_repartidor','customer_id','customer_id_ajeno','courier_id_activo','courier_id_inactivo','courier_id_ajeno','shipment_id_admin','tracking_code_admin','shipment_id_cliente','tracking_code_cliente','shipment_id_cancelable','shipment_id_asignado','shipment_id_en_ruta','shipment_id_entregado','shipment_id_cancelado','shipment_id_ajeno'].forEach(v => pm.environment.unset(v));",
+                  "pm.environment.set('run_id',runId);",
+                  "pm.environment.set('unique_customer_email',`cliente_${runId}@logitrack.com`);",
+                  "pm.environment.set('unique_customer_name',`Cliente ${runId}`);",
+                  "pm.environment.set('unique_courier_name',`Repartidor ${runId}`);",
+                  "pm.environment.set('unique_username_cliente',`cli_${runId}`);",
+                  "pm.environment.set('unique_username_repartidor',`rep_${runId}`);",
+                  "pm.environment.set('cliente_password',`Cli!${runId}`);",
+                  "pm.environment.set('repartidor_password',`Rep!${runId}`);"
                 ]
               }
             },
@@ -258,64 +251,6 @@
           ]
         },
         {
-          "name": "01.4 Login REPARTIDOR (POST /api/v1/auth/login) -> Obtener repartidor_token",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              },
-              {
-                "key": "Accept",
-                "value": "application/json",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{security_service_url}}/api/v1/auth/login",
-              "host": [
-                "{{security_service_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "auth",
-                "login"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"username\": \"{{repartidor_username}}\",\n  \"password\": \"{{repartidor_password}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status code es 200 OK\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Retorna accessToken Bearer y se captura repartidor_token\", function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property(\"accessToken\");",
-                  "    pm.environment.set(\"repartidor_token\", jsonData.accessToken);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
           "name": "01.5 Consultar Perfil Propio (GET /api/v1/auth/me) - Rol ADMIN",
           "request": {
             "method": "GET",
@@ -406,54 +341,6 @@
                   "pm.test(\"Perfil CLIENTE contiene rol CLIENTE\", function () {",
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData.roles).to.include(\"CLIENTE\");",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "01.7 Consultar Perfil Propio (GET /api/v1/auth/me) - Rol REPARTIDOR",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{repartidor_token}}",
-                "type": "text"
-              }
-            ],
-            "url": {
-              "raw": "{{security_service_url}}/api/v1/auth/me",
-              "host": [
-                "{{security_service_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "auth",
-                "me"
-              ]
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status code es 200 OK\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Perfil REPARTIDOR contiene rol REPARTIDOR\", function () {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.roles).to.include(\"REPARTIDOR\");",
                   "});"
                 ]
               }
@@ -625,6 +512,176 @@
                   }
                 }
               ]
+            },
+            {
+              "name": "02.1.4 Crear cliente ajeno real para aislamiento",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/customers",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "customers"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"name\": \"Cliente ajeno {{run_id}}\", \"email\": \"ajeno_{{run_id}}@logitrack.com\", \"phone\": \"123456\"}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Cliente ajeno creado\", () => pm.response.to.have.status(201));",
+                      "pm.environment.set(\"customer_id_ajeno\", pm.response.json().id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.1.5 Vincular cuenta CLIENTE al cliente de dominio",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{security_service_url}}/api/v1/users/{{user_id_cliente}}/customer-link",
+                  "host": [
+                    "{{security_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "users",
+                    "{{user_id_cliente}}",
+                    "customer-link"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customerId\": \"{{customer_id}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Estado esperado\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Vínculo correcto\", () => pm.expect(pm.response.json().customerId).to.eql(pm.environment.get(\"customer_id\")));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.1.6 Renovar JWT CLIENTE después del vínculo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{security_service_url}}/api/v1/auth/login",
+                  "host": [
+                    "{{security_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"{{unique_username_cliente}}\",\n  \"password\": \"{{cliente_password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Retorna accessToken Bearer y se captura cliente_token\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"accessToken\");",
+                      "    pm.environment.set(\"cliente_token\", jsonData.accessToken);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
             }
           ]
         },
@@ -750,6 +807,15 @@
                       "    var jsonData = pm.response.json();",
                       "    pm.environment.set(\"courier_id_inactivo\", jsonData.id);",
                       "});"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.environment.set(\"courier_id_ajeno\",pm.response.json().id);"
                     ]
                   }
                 }
@@ -1021,6 +1087,166 @@
                   }
                 }
               ]
+            },
+            {
+              "name": "02.2.7 Crear cuenta REPARTIDOR vinculada por ADMIN",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{security_service_url}}/api/v1/users",
+                  "host": [
+                    "{{security_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "users"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"rep_{{run_id}}@logitrack.com\",\n  \"username\": \"{{unique_username_repartidor}}\",\n  \"password\": \"{{repartidor_password}}\",\n  \"name\": \"Repartidor {{run_id}}\",\n  \"roles\": [\n    \"REPARTIDOR\"\n  ],\n  \"courierId\": \"{{courier_id_activo}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Estado esperado\", () => pm.response.to.have.status(201));",
+                      "pm.environment.set(\"user_id_repartidor\",pm.response.json().id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.2.8 Login del REPARTIDOR creado en esta ejecución",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{security_service_url}}/api/v1/auth/login",
+                  "host": [
+                    "{{security_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"{{unique_username_repartidor}}\",\n  \"password\": \"{{repartidor_password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Retorna accessToken Bearer y se captura repartidor_token\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"accessToken\");",
+                      "    pm.environment.set(\"repartidor_token\", jsonData.accessToken);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.2.9 Perfil del REPARTIDOR vinculado",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{repartidor_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{security_service_url}}/api/v1/auth/me",
+                  "host": [
+                    "{{security_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "me"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Perfil REPARTIDOR contiene rol REPARTIDOR\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.roles).to.include(\"REPARTIDOR\");",
+                      "});"
+                    ]
+                  }
+                }
+              ]
             }
           ]
         },
@@ -1214,9 +1440,9 @@
               ]
             },
             {
-              "name": "02.3.4 Asignar Repartidor a Envío (PATCH /api/v1/shipments/{id}/courier)",
+              "name": "02.3.4 Asignar Repartidor a Envío (PUT /api/v1/shipments/{id}/courier)",
               "request": {
-                "method": "PATCH",
+                "method": "PUT",
                 "header": [
                   {
                     "key": "Content-Type",
@@ -1322,6 +1548,62 @@
                       "    pm.expect(jsonData.status).to.eql(\"CANCELADO\");",
                       "    pm.environment.set(\"shipment_id_cancelado\", jsonData.id);",
                       "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.3.6 Crear envío ajeno real para comprobar 403",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customerId\": \"{{customer_id_ajeno}}\",\n  \"origin\": {\n    \"street\": \"Av. Belgrano\",\n    \"number\": \"456\",\n    \"city\": \"San Salvador de Jujuy\",\n    \"postalCode\": \"4600\"\n  },\n  \"destination\": {\n    \"street\": \"Necochea\",\n    \"number\": \"789\",\n    \"city\": \"San Salvador de Jujuy\",\n    \"postalCode\": \"4600\"\n  },\n  \"weightKg\": 2.5,\n  \"widthCm\": 20,\n  \"heightCm\": 15,\n  \"lengthCm\": 30\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Envío ajeno creado\", () => pm.response.to.have.status(201));",
+                      "pm.environment.set(\"shipment_id_ajeno\",pm.response.json().id);"
                     ]
                   }
                 }
@@ -1605,6 +1887,15 @@
                   "});"
                 ]
               }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Filtrado por cliente autenticado\", () => { pm.response.json().content.forEach(row => pm.expect(row.customerId).to.eql(pm.environment.get(\"customer_id\"))); });"
+                ]
+              }
             }
           ]
         }
@@ -1681,7 +1972,7 @@
               }
             ],
             "url": {
-              "raw": "{{shipment_service_url}}/api/v1/shipments?courierId={{courier_id_activo}}",
+              "raw": "{{shipment_service_url}}/api/v1/shipments?size=100",
               "host": [
                 "{{shipment_service_url}}"
               ],
@@ -1692,8 +1983,8 @@
               ],
               "query": [
                 {
-                  "key": "courierId",
-                  "value": "{{courier_id_activo}}"
+                  "key": "size",
+                  "value": "100"
                 }
               ]
             }
@@ -1713,6 +2004,15 @@
                   "    var content = jsonData.content || jsonData;",
                   "    pm.expect(Array.isArray(content)).to.be.true;",
                   "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Filtrado por courier autenticado\", () => { const rows=pm.response.json().content; pm.expect(rows.length).to.be.above(0); rows.forEach(row => pm.expect(row.courierId).to.eql(pm.environment.get(\"courier_id_activo\"))); });"
                 ]
               }
             }
@@ -2153,9 +2453,9 @@
               ]
             },
             {
-              "name": "05.2.3 403 CLIENTE intenta Asignar Courier (PATCH /api/v1/shipments/{id}/courier)",
+              "name": "05.2.3 403 CLIENTE intenta Asignar Courier (PUT /api/v1/shipments/{id}/courier)",
               "request": {
-                "method": "PATCH",
+                "method": "PUT",
                 "header": [
                   {
                     "key": "Content-Type",
@@ -2464,9 +2764,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"Status code es 403 Forbidden o 404 Not Found (Aislamiento de pertenencia)\", function () {",
-                      "    pm.expect([403, 404]).to.include(pm.response.code);",
-                      "});"
+                      "pm.test(\"Recurso ajeno existente devuelve 403\", () => pm.response.to.have.status(403));"
                     ]
                   }
                 }
@@ -2581,9 +2879,9 @@
           "name": "05.4 Reglas de Dominio y Máquina de Estados (422)",
           "item": [
             {
-              "name": "05.4.1 422 Asignar Courier INACTIVO a Envío (PATCH /api/v1/shipments/{id}/courier)",
+              "name": "05.4.1 422 Asignar Courier INACTIVO a Envío (PUT /api/v1/shipments/{id}/courier)",
               "request": {
-                "method": "PATCH",
+                "method": "PUT",
                 "header": [
                   {
                     "key": "Content-Type",
@@ -2602,7 +2900,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_admin}}/courier",
+                  "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_cliente}}/courier",
                   "host": [
                     "{{shipment_service_url}}"
                   ],
@@ -2610,7 +2908,7 @@
                     "api",
                     "v1",
                     "shipments",
-                    "{{shipment_id_admin}}",
+                    "{{shipment_id_cliente}}",
                     "courier"
                   ]
                 },
