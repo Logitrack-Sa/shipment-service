@@ -2671,7 +2671,7 @@
               ]
             },
             {
-              "name": "05.2.7 400/403 Registro Público con Rol Privilegiado ADMIN (POST /api/v1/auth/register)",
+              "name": "05.2.7 400 Registro público rechaza rol ADMIN",
               "request": {
                 "method": "POST",
                 "header": [
@@ -2715,8 +2715,9 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"Status code es 400 Bad Request o 403 Forbidden\", function () {",
-                      "    pm.expect([400, 403, 422]).to.include(pm.response.code);",
+                      "pm.test(\"Registro privilegiado devuelve 400 PRIVILEGE_ESCALATION\", function () {",
+                      "    pm.response.to.have.status(400);",
+                      "    pm.expect(pm.response.json().code).to.eql(\"PRIVILEGE_ESCALATION\");",
                       "});"
                     ]
                   }
