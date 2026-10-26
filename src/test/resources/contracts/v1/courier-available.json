@@ -1,0 +1,8 @@
+{
+  "status": 200,
+  "body": {
+    "courierId": "20000000-0000-0000-0000-000000000001",
+    "status": "ACTIVO",
+    "available": true
+  }
+}

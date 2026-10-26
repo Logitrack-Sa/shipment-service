@@ -1,31 +1,17 @@
 spring:
   application:
     name: shipment-service
-  datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:logitrack}
-    username: ${DB_USER:logitrack}
-    password: ${DB_PASSWORD}
+  profiles:
+    default: dev
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: validate
     properties:
-      hibernate:
-        jdbc:
-          time_zone: UTC
+      hibernate.jdbc.time_zone: UTC
   flyway:
     enabled: true
-    locations: classpath:db/migration
     validate-on-migrate: true
-
 management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-
-logitrack:
-  fee:
-    base: ${FEE_BASE:1000.00}
-    price-per-kg: ${FEE_PRICE_PER_KG:250.00}
-    volumetric-divisor: ${FEE_VOLUMETRIC_DIVISOR:5000}
+  endpoints.web.exposure.include: health,info
+  endpoint.health.show-details: never

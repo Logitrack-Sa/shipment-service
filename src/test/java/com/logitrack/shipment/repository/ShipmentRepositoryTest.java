@@ -1,6 +1,5 @@
 package com.logitrack.shipment.repository;
 
-import com.logitrack.shipment.config.JpaAuditingConfig;
 import com.logitrack.shipment.entity.Address;
 import com.logitrack.shipment.entity.Customer;
 import com.logitrack.shipment.entity.Shipment;
@@ -10,20 +9,14 @@ import org.hibernate.Hibernate;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
-@Import(JpaAuditingConfig.class)
-@ActiveProfiles("test")
 class ShipmentRepositoryTest extends AbstractMySqlRepositoryTest {
     @Autowired
     private ShipmentRepository repository;
@@ -49,7 +42,7 @@ class ShipmentRepositoryTest extends AbstractMySqlRepositoryTest {
             assertThat(shipment.getCustomer().getName()).isEqualTo("Customer");
             assertThat(shipment.getOrigin().getCity()).isEqualTo("Jujuy");
             assertThat(shipment.getDestination().getCity()).isEqualTo("Palpalá");
-            assertThat(shipment.getCourier()).isNull();
+            assertThat(shipment.getCourierId()).isNull();
         });
         assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
     }

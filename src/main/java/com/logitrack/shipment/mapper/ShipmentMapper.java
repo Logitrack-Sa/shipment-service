@@ -25,7 +25,7 @@ public class ShipmentMapper {
                 toDto(shipment.getOrigin()), toDto(shipment.getDestination()),
                 shipment.getWeightKg(), shipment.getWidthCm(), shipment.getHeightCm(),
                 shipment.getLengthCm(), shipment.getFee(), shipment.getStatus(),
-                shipment.getCourier() == null ? null : shipment.getCourier().getId(),
+                shipment.getCourierId(),
                 shipment.getCreatedAt(), shipment.getUpdatedAt(),
                 shipment.getCreatedBy(), shipment.getLastModifiedBy(), shipment.getVersion());
     }

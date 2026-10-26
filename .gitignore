@@ -3,5 +3,12 @@ target/
 *.iml
 *.log
 .env
+.env.*
+!.env.example
+*.pem
+*.key
 .DS_Store
 .mvn/wrapper/maven-wrapper.jar
+
+__pycache__/
+*.pyc

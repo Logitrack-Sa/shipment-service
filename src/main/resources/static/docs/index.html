@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Documentación de la API de LogiTrack. Integra clientes, repartidores y envíos con ejemplos y solicitudes reales.">
+  <meta name="theme-color" content="#f7f9fc">
+  <title>LogiTrack Docs · Documentación de la API</title>
+  <link rel="icon" href="/docs/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/docs/styles.css">
+  <script type="module" src="/docs/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <header class="header">
+    <div class="header-main">
+      <button class="icon-button menu-toggle" id="menu-toggle" aria-label="Abrir navegación" aria-expanded="false" aria-controls="sidebar">☰</button>
+      <a class="brand" href="#introduction" aria-label="LogiTrack Docs, inicio"><img src="/docs/mark.svg" width="30" height="30" alt=""><span>logitrack</span><span class="brand-docs">DOCS</span></a>
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.4"></circle><path d="m16 16 4 4"></path></svg>
+        <label class="sr-only" for="search">Buscar en la documentación</label>
+        <input id="search" type="search" placeholder="Buscar en la documentación" autocomplete="off" aria-controls="search-results">
+        <kbd>/</kbd>
+        <div class="search-results" id="search-results" hidden></div>
+      </div>
+      <div class="header-links"><span class="version" id="version">API v1</span><a href="https://github.com/Logitrack-Sa/shipment-service" target="_blank" rel="noreferrer">GitHub <span aria-hidden="true">↗</span></a><a class="outline-button" href="/docs/explorer.html">Explorador API <span aria-hidden="true">↗</span></a></div>
+    </div>
+    <nav class="top-nav" aria-label="Secciones principales"><a href="#introduction" data-tab="guide">Empieza aquí</a><a href="#reference" data-tab="api">Referencia API</a><a href="#models" data-tab="models">Modelos de datos</a><a href="#errors" data-tab="errors">Manejo de errores</a><button class="service-status" id="service-status" title="Comprobar disponibilidad del servicio"><span class="status-dot"></span><span>Comprobando servicio</span></button></nav>
+  </header>
+  <button class="nav-overlay" id="nav-overlay" aria-label="Cerrar navegación" hidden></button>
+  <aside class="sidebar" id="sidebar" aria-label="Navegación de documentación"><div class="sidebar-scroll" id="navigation"><p class="loading-label">Cargando documentación…</p></div><div class="sidebar-footer"><span class="language-mark" aria-hidden="true">◎</span><span>Español</span><span class="local-label">REST · JSON</span></div></aside>
+  <div class="workspace">
+    <main id="main" tabindex="-1"><div class="loading-page"><span class="loading-spinner"></span><p>Preparando tu documentación…</p></div></main>
+    <aside class="page-index" aria-label="En esta página"><p>EN ESTA PÁGINA</p><nav id="page-index"></nav><a class="index-source" href="/v3/api-docs" target="_blank" rel="noreferrer">Ver especificación OpenAPI <span aria-hidden="true">↗</span></a></aside>
+  </div>
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>
