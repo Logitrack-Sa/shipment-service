@@ -64,10 +64,17 @@ jobs:
     timeout-minutes: 15
     env:
       DB_NAME: shipment_ci
-      DB_USER: shipment_ci
+      DB_USERNAME: shipment_ci
       DB_PASSWORD: integration-only
       DB_ROOT_PASSWORD: integration-root-only
       SMOKE_FIXTURE_DIR: /tmp/shipment-contracts
+      COMPOSE_PROJECT_NAME: logitrack-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+      CONFIG_SERVER_URL: http://contract-fixture:8765
+      COURIER_SERVICE_URL: http://contract-fixture:8765
+      JWT_PUBLIC_KEY_FILE: /tmp/shipment-contracts/public.pem
+      JWT_KEY_ID: ci-ephemeral
+      JWT_ISSUER: https://issuer.test
+      JWT_AUDIENCE: shipment-service
     steps:
       - name: Obtener código
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -77,10 +84,10 @@ jobs:
         run: python3 .github/scripts/prepare_smoke.py
       - name: Construir y levantar shipment con MySQL y dobles HTTP
         run: docker compose -f compose.yaml -f .github/compose.smoke.yaml up --build --detach
-      - name: Comprobar usuario sin privilegios
-        run: test "$(docker compose -f compose.yaml -f .github/compose.smoke.yaml exec -T shipment-service id -u)" = "10001"
       - name: Verificar el flujo HTTP completo
         run: python3 .github/scripts/smoke_test.py
+      - name: Comprobar usuario sin privilegios después del health HTTP
+        run: test "$(docker compose -f compose.yaml -f .github/compose.smoke.yaml exec -T shipment-service id -u)" = "10001"
       - name: Mostrar logs si hay errores
         if: failure()
         run: docker compose -f compose.yaml -f .github/compose.smoke.yaml logs --no-color --tail=200

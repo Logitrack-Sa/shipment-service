@@ -1,44 +1,54 @@
-
+# Desarrollo de shipment con su propia base. La entrega de cuatro apps es #64.
 services:
   mysql:
     image: mysql:8.4
-    container_name: shipment-mysql
     environment:
       MYSQL_DATABASE: ${DB_NAME:-shipment_db}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
-      MYSQL_USER: ${DB_USER:-shipment_user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-shipment_password}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Definir DB_ROOT_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME:?Definir DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Definir DB_PASSWORD}
     ports:
       - "127.0.0.1:${DB_PORT:-3308}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASSWORD:-rootpassword}"]
+      test: [CMD-SHELL, 'MYSQL_PWD=$$MYSQL_PASSWORD mysqladmin ping -h localhost -u$$MYSQL_USER --silent']
       interval: 5s
       timeout: 3s
-      retries: 10
-    networks:
-      - shipment-net
+      retries: 20
+    networks: [shipment-net]
 
   shipment-service:
     build: .
-    container_name: shipment-app
     ports:
-      - "8080:8080"
+      - "127.0.0.1:${SHIPMENT_PORT:-8081}:8081"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/${DB_NAME:-shipment_db}?sslMode=REQUIRED&serverTimezone=UTC
-      - SPRING_DATASOURCE_USERNAME=${DB_USER:-shipment_user}
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-shipment_password}
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      SERVER_PORT: 8081
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      CONFIG_SERVER_URL: ${CONFIG_SERVER_URL:?Definir CONFIG_SERVER_URL}
+      DB_URL: jdbc:mysql://mysql:3306/${DB_NAME:-shipment_db}?sslMode=REQUIRED&serverTimezone=UTC
+      DB_USERNAME: ${DB_USERNAME:?Definir DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD:?Definir DB_PASSWORD}
+      COURIER_SERVICE_URL: ${COURIER_SERVICE_URL:?Definir COURIER_SERVICE_URL}
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      JWT_KEY_ID: ${JWT_KEY_ID:?Definir JWT_KEY_ID}
+      JWT_ISSUER: ${JWT_ISSUER:?Definir JWT_ISSUER}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?Definir JWT_AUDIENCE}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+    volumes:
+      - type: bind
+        source: ${JWT_PUBLIC_KEY_FILE:?Definir JWT_PUBLIC_KEY_FILE}
+        target: /run/secrets/jwt-public.pem
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       mysql:
         condition: service_healthy
-    networks:
-      - shipment-net
+    networks: [shipment-net]
 
 volumes:
   mysql_data:
-
 networks:
   shipment-net:
     driver: bridge

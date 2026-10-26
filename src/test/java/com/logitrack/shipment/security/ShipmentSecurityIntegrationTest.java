@@ -121,6 +121,22 @@ class ShipmentSecurityIntegrationTest extends JwtTestSupport {
         }
     }
 
+    @Test void adminWithAdditionalRolesDoesNotRequireDomainLinks() throws Exception {
+        var authorization = "Bearer " + token("admin", Map.of("roles", List.of("ADMIN", "CLIENTE", "REPARTIDOR")));
+        mvc.perform(get("/api/v1/shipments").header("Authorization", authorization))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test void multipleRolesUseTheirOwnValidAssociation() throws Exception {
+        var authorization = "Bearer " + token("repartidor-a", Map.of("roles", List.of("CLIENTE", "REPARTIDOR")));
+        mvc.perform(get("/api/v1/shipments/" + a.getId()).header("Authorization", authorization))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/shipments").header("Authorization", authorization))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
+        mvc.perform(get("/api/v1/shipments/" + b.getId()).header("Authorization", authorization))
+                .andExpect(status().isForbidden());
+    }
+
     @Test void clientCreatesOnlyForOwnCustomerAndCannotChangeStateOrAssignment() throws Exception {
         var request = json.valueToTree(ShipmentFixtures.request());
         ((com.fasterxml.jackson.databind.node.ObjectNode)request).put("customerId", customerA.getId().toString());

@@ -17,9 +17,10 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/shipment-service/"):
             body = json.loads(Path("/fixture/config.json").read_text())
         elif match := re.fullmatch(r"/api/v1/(internal/)?couriers/([a-f0-9-]{36})/(availability|status)", self.path):
-            bearer = self.headers.get("Authorization", "").removeprefix("Bearer ")
+            authorization = self.headers.get("Authorization", "")
+            bearer = authorization.removeprefix("Bearer ")
             expected = Path("/fixture/token.sha256").read_text().strip()
-            if not hmac.compare_digest(hashlib.sha256(bearer.encode()).hexdigest(), expected):
+            if not authorization.startswith("Bearer ") or not hmac.compare_digest(hashlib.sha256(bearer.encode()).hexdigest(), expected):
                 status, body = 401, {"code": "UNAUTHORIZED"}
             else:
                 identifier = match[2]

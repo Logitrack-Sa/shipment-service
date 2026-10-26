@@ -16,6 +16,8 @@ Boot 3.5.16 y Spring Cloud 2025.0.3 (BOM 2025.0.x compatible). El bootstrap vers
 - ConfigClientIntegrationTest arranca el programa completo con Environment remoto simulado en dev/prod y comprueba que falla cuando Config Server falta.
 - CI inicia shipment y MySQL reales en contenedores con `.github/compose.smoke.yaml`. Config y courier son dobles declarados, la firma JWT RSA es real y efímera. No es evidencia de la integración final de cuatro aplicaciones; esa corresponde a #61/#64.
 
-Dockerfile #58 adaptado: multietapa, bases por digest, usuario10001 y contexto mínimo. El Compose básico del Sprint 1 todavía no es la entrega distribuida de #64. Para smoke aislado se usa el override de CI; no usar sus fixtures como configuración de producción.
+Dockerfile #58 adaptado: multietapa, bases por digest, usuario10001 y contexto mínimo. `compose.yaml` ejecuta shipment y su MySQL en desarrollo, con puerto 8081, validación Flyway/JPA y la clave pública montada. Copiar `.env.example` a `.env`, completar contraseñas, URLs y parámetros JWT y ejecutar `docker compose up -d --build`. Config Server y courier deben estar disponibles desde el contenedor; este archivo no arranca esos servicios ni reemplaza el Compose image-only de #64. No usar credenciales de prueba o el override de CI en producción.
+
+`DB_USERNAME` es la variable de la aplicación y del Compose actualizado. Las bases creadas antes conservan sus credenciales originales: cambiar `.env` no cambia usuarios de un volumen MySQL existente. No borrar el volumen para corregir credenciales; usar una base de prueba nueva o acordar el ajuste con el administrador.
 
 Para IntelliJ sin dependencias externas ver [demo y pruebas locales](INTELLIJ.md). Para la entrega de cuatro servicios, [integración real](INTEGRACION.md).

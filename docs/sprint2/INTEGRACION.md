@@ -2,6 +2,8 @@
 
 Estado: harness implementado; **ejecución final pendiente de #64/#65 y de los servicios de compañeros**. No hay namespace ni tags publicados verificados. No se sustituyen imágenes reales por dobles para cerrar esta tarea.
 
+El workflow manual valida exclusivamente la entrega versionada en main. Registra el SHA del checkout y los digests de las imágenes, no aprueba un PR diferente. [Estado actualizado y dependencias concretas](ESTADO-ENTREGA.md).
+
 ## Preparar el entorno descartable
 
 1. Incorporar el Compose image-only de Damián (por ejemplo compose.release.yaml) al checkout. Debe contener shipment-service, courier-service, security-service, config-server y tres MySQL, sin build. Usar tags explícitos o digests de registro; latest y etiquetas únicamente locales no sirven como evidencia.

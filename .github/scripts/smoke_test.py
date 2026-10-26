@@ -10,7 +10,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 TOKEN = None
-BASE_URL = os.environ.get("SMOKE_BASE_URL", "http://localhost:8080").rstrip("/")
+BASE_URL = os.environ.get("SMOKE_BASE_URL", "http://127.0.0.1:8081").rstrip("/")
 
 
 def request(path, method="GET", data=None, status=200):

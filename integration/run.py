@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import subprocess
 from pathlib import Path
 from datetime import datetime, timezone
 from http_api import Api, PrerequisiteError
@@ -18,6 +19,9 @@ def main():
     parser.add_argument("--allow-courier-stop", action="store_true")
     args = parser.parse_args()
     report = {"mode": "real-distributed", "status": "blocked", "checkedAt": datetime.now(timezone.utc).isoformat(), "cases": []}
+    revision = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True, timeout=10)
+    report["sourceRevision"] = revision.stdout.strip()
+    report["scope"] = "Entrega del checkout indicado y digests de imágenes; no aprobación de un PR"
     compose = None
     try:
         if not args.allow_courier_stop:

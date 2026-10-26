@@ -1,4 +1,4 @@
-name: Integración distribuida manual
+name: Integración de entrega en main
 on:
   workflow_dispatch:
     inputs:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 jobs:
   integration:
-    name: Cuatro servicios reales e imágenes publicadas
+    name: Entrega de main con cuatro imágenes publicadas (no certifica PR)
     runs-on: ubuntu-latest
     environment: sprint2-integration
     timeout-minutes: 20
@@ -37,6 +37,10 @@ jobs:
         with:
           ref: main
           persist-credentials: false
+      - name: Identificar el checkout que se valida
+        run: |
+          echo 'Esta ejecución valida la entrega versionada en main; no aprueba un PR.' >> "$GITHUB_STEP_SUMMARY"
+          echo "Checkout: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
       - name: Verificar manifiesto y Compose de entrega
         id: prerequisites
         run: python3 integration/preflight.py "$COMPOSE_FILE"

@@ -22,11 +22,9 @@ services:
       SPRING_PROFILES_ACTIVE: dev
       CONFIG_SERVER_URL: http://contract-fixture:8765
       DB_URL: jdbc:mysql://mysql:3306/${DB_NAME}?sslMode=REQUIRED&serverTimezone=UTC
-      DB_USERNAME: ${DB_USER}
+      DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
-    volumes:
-      - ${SMOKE_FIXTURE_DIR:?}/public.pem:/run/contracts/public.pem:ro
     depends_on:
       contract-fixture:
         condition: service_healthy

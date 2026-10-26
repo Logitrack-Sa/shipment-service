@@ -34,8 +34,8 @@ public class ShipmentAccess {
 
     public Specification<Shipment> scope(ShipmentStatus status) {
         boolean admin = hasRole("ADMIN");
-        UUID customerId = hasRole("CLIENTE") ? link("customerId") : null;
-        UUID courierId = hasRole("REPARTIDOR") ? link("courierId") : null;
+        UUID customerId = !admin && hasRole("CLIENTE") ? link("customerId") : null;
+        UUID courierId = !admin && hasRole("REPARTIDOR") ? link("courierId") : null;
         if (!admin && customerId == null && courierId == null) throw denied();
         return (root, query, cb) -> {
             var owned = admin ? cb.conjunction() : cb.or(
@@ -55,7 +55,7 @@ public class ShipmentAccess {
         try {
             Jwt jwt = ((JwtAuthenticationToken) SecurityContextHolder.getContext().getAuthentication()).getToken();
             return UUID.fromString(jwt.getClaimAsString(claim));
-        } catch (RuntimeException exception) { throw denied(); }
+        } catch (RuntimeException exception) { return null; }
     }
 
     private static AccessDeniedException denied() { return new AccessDeniedException("Acceso a envío denegado"); }

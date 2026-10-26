@@ -25,9 +25,9 @@ class ContractFixtureTest(unittest.TestCase):
         self.thread.join()
         self.path_patch.stop()
 
-    def call(self, identifier, token="expected-token"):
+    def call(self, identifier, token="expected-token", scheme="Bearer "):
         req = Request(f"http://127.0.0.1:{self.server.server_port}/api/v1/couriers/{identifier}/availability",
-                      headers={"Authorization": "Bearer " + token})
+                      headers={"Authorization": scheme + token})
         try:
             response = urlopen(req, timeout=2)
         except HTTPError as failure:
@@ -46,6 +46,12 @@ class ContractFixtureTest(unittest.TestCase):
         status, body = self.call(identifier)
         self.assertEqual(status, 200)
         self.assertTrue(body["available"])
+
+    def test_missing_or_wrong_authorization_scheme_is_rejected(self):
+        identifier = "20000000-0000-0000-0000-000000000001"
+        for scheme in ("", "Basic ", "bearer ", "Bearer  "):
+            with self.subTest(scheme=scheme):
+                self.assertEqual(self.call(identifier, scheme=scheme)[0], 401)
 
 
 if __name__ == "__main__":

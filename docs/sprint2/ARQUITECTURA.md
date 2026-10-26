@@ -25,6 +25,6 @@ Cuatro aplicaciones, tres MySQL y un repositorio Git de propiedades. Sin API Gat
 
 ## Lo que se prueba hoy
 
-Shipment tiene pruebas unitarias, MySQL, migración y arranque en contenedor con dobles HTTP. `Sprint2_Demo` ejecuta la aplicación en IntelliJ con H2 volátil, un Config simulado y un Courier simulado; firma y autorización JWT son reales pero las claves son efímeras de test. No equivale al conjunto distribuido.
+Shipment tiene pruebas unitarias, MySQL, migración y arranque en contenedor con dobles HTTP. `Sprint2_Demo_H2` ejecuta la aplicación en IntelliJ con H2 volátil, un Config simulado y un Courier simulado; firma y autorización JWT son reales pero las claves son efímeras de test. No equivale al conjunto distribuido.
 
-Los repositorios de compañeros siguen documentales al preparar esta entrega. La validación real queda condicionada a sus implementaciones, cuentas vinculadas y cuatro imágenes publicadas (#61/#64/#65). [Requisitos y comando de integración](INTEGRACION.md).
+Hay implementaciones propuestas de courier y Config Server, una base de usuarios/roles y propiedades dev/prod. Sus PR y ramas todavía deben integrarse; no hay login/JWT de security ni cuatro imágenes publicadas verificadas al 26/10/2026. La validación real queda condicionada a esas entregas, cuentas vinculadas y Compose image-only (#61/#64/#65). [Estado por issue](ESTADO-ENTREGA.md) · [Requisitos y comando de integración](INTEGRACION.md).

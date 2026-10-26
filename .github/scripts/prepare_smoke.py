@@ -27,14 +27,14 @@ token = message + b"." + base64.urlsafe_b64encode(signature).rstrip(b"=")
 (root / "token.txt").chmod(0o600)
 (root / "token.sha256").write_text(hashlib.sha256(token).hexdigest(), encoding="ascii")
 source = {
-    "server.port": 8080,
+    "server.port": 8081,
     "spring.datasource.url": "${DB_URL}",
     "spring.datasource.username": "${DB_USERNAME}",
     "spring.datasource.password": "${DB_PASSWORD}",
     "logitrack.fee.base": 1000, "logitrack.fee.price-per-kg": 250, "logitrack.fee.volumetric-divisor": 5000,
     "logitrack.courier.base-url": "http://contract-fixture:8765",
     "logitrack.courier.connect-timeout": "500ms", "logitrack.courier.read-timeout": "1s",
-    "logitrack.security.public-key-location": "file:/run/contracts/public.pem",
+    "logitrack.security.public-key-location": "file:/run/secrets/jwt-public.pem",
     "logitrack.security.key-id": "ci-ephemeral",
     "logitrack.security.issuer": "https://issuer.test",
     "logitrack.security.audience": "shipment-service",

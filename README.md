@@ -4,6 +4,8 @@
 
 API de envíos con Java 25, Spring Boot 3.5.16, Spring Cloud 2025.0.3, JPA, MySQL y Flyway. Conserva tarifa, tracking, estados, cancelación y auditoría del Sprint 1. Courier es un UUID externo, consultado por REST; sus datos se administran en courier-service.
 
+[Estado actualizado por issue y dependencias del equipo](docs/sprint2/ESTADO-ENTREGA.md).
+
 ## Probar en IntelliJ
 
 [Configuraciones listas: Sprint2_Pruebas_Local y Sprint2_Demo_H2](docs/sprint2/INTELLIJ.md). La demo usa H2 volátil, claves efímeras y dobles HTTP; no toca datos existentes ni representa cuatro servicios reales.
