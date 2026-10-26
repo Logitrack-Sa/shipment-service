@@ -26,6 +26,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Pruebas de la capa web para {@code POST /api/v1/shipments/{id}/cancellation}: respuestas 200,
  * 400, 404 y 422 cuando el envío no está en estado {@code PENDIENTE}.
  */
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(addFilters = false)
+@org.springframework.test.context.ActiveProfiles("test")
 @WebMvcTest(ShipmentController.class)
 class CancelShipmentControllerTest {
 

@@ -21,6 +21,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.util.Objects;
+import java.util.UUID;
 
 @Getter
 @Entity
@@ -73,9 +74,8 @@ public class Shipment extends BaseEntity {
     @Column(nullable = false, length = 20)
     private ShipmentStatus status = ShipmentStatus.PENDIENTE;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "courier_id")
-    private Courier courier;
+    @Column(name = "courier_id")
+    private UUID courierId;
 
     @Builder
     private Shipment(String trackingCode, Customer customer, Address origin, Address destination,
@@ -92,9 +92,9 @@ public class Shipment extends BaseEntity {
         this.fee = fee;
     }
 
-    public void assignCourier(Courier courier) {
-        this.courier = Objects.requireNonNull(
-            courier,
+    public void assignCourier(UUID courierId) {
+        this.courierId = Objects.requireNonNull(
+            courierId,
             "El repartidor no puede ser nulo"
         );
     }

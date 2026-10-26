@@ -1,8 +1,6 @@
 package com.logitrack.shipment.service;
 
 import com.logitrack.shipment.dto.CreateShipmentRequest;
-import com.logitrack.shipment.entity.Courier;
-import com.logitrack.shipment.entity.CourierStatus;
 import com.logitrack.shipment.entity.Shipment;
 import com.logitrack.shipment.entity.ShipmentStatus;
 import com.logitrack.shipment.exception.CourierNotActiveException;
@@ -12,7 +10,7 @@ import com.logitrack.shipment.exception.InvalidStateTransitionException;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
 import com.logitrack.shipment.exception.ShipmentCannotBeCancelledException;
 import com.logitrack.shipment.mapper.ShipmentMapper;
-import com.logitrack.shipment.repository.CourierRepository;
+import com.logitrack.shipment.client.CourierLookup;
 import com.logitrack.shipment.repository.CustomerRepository;
 import com.logitrack.shipment.repository.ShipmentRepository;
 import com.logitrack.shipment.support.ShipmentEntities;
@@ -47,6 +45,8 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class ShipmentServiceTest {
     @Mock
+    private com.logitrack.shipment.security.ShipmentAccess access;
+    @Mock
     private ShipmentRepository shipments;
     @Mock
     private CustomerRepository customers;
@@ -59,7 +59,7 @@ class ShipmentServiceTest {
     private ShipmentStatusRecorder statusRecorder;
 
     @Mock
-    private CourierRepository couriers;
+    private CourierLookup couriers;
 
     private ShipmentService service;
 
@@ -68,7 +68,7 @@ class ShipmentServiceTest {
         var mapper = new ShipmentMapper();
         var fees = new FeeCalculator(new BigDecimal("1000"), new BigDecimal("250"), new BigDecimal("5000"));
         var creator = new ShipmentCreator(customers, shipments, fees, mapper, recorder);
-        service = new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusRecorder);
+        service = new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access);
     }
 
     @Nested
@@ -211,7 +211,7 @@ class ShipmentServiceTest {
         @Test
         void filtersByStatusWithPagination() {
             var pageable = PageRequest.of(1, 1);
-            when(shipments.findByStatus(ShipmentStatus.PENDIENTE, pageable))
+            when(shipments.findAll(org.mockito.ArgumentMatchers.<org.springframework.data.jpa.domain.Specification<Shipment>>isNull(), eq(pageable)))
                     .thenReturn(new PageImpl<>(List.of(ShipmentEntities.shipment()), pageable, 3));
 
             var response = service.findAll(ShipmentStatus.PENDIENTE, pageable);
@@ -227,7 +227,7 @@ class ShipmentServiceTest {
         @Test
         void listsAllWhenStatusIsAbsent() {
             var pageable = PageRequest.of(0, 20);
-            when(shipments.findAll(pageable)).thenReturn(new PageImpl<>(List.of()));
+            when(shipments.findAll(org.mockito.ArgumentMatchers.<org.springframework.data.jpa.domain.Specification<Shipment>>isNull(), eq(pageable))).thenReturn(new PageImpl<>(List.of()));
 
             assertThat(service.findAll(null, pageable).content()).isEmpty();
             verify(shipments, never()).findByStatus(any(), any());
@@ -258,6 +258,7 @@ class ShipmentServiceTest {
             Shipment shipment = persistedShipment(from);
             if (allowed && to == ShipmentStatus.EN_RUTA) {
                 shipment.assignCourier(activeCourier());
+                doNothing().when(couriers).requireActive(shipment.getCourierId());
             }
 
             if (allowed) {
@@ -297,9 +298,9 @@ class ShipmentServiceTest {
         @Test
         void rejectsEnRouteWithInactiveCourier() {
             Shipment shipment = persistedShipment(ShipmentStatus.PENDIENTE);
-            Courier courier = activeCourier();
-            courier.changeStatus(CourierStatus.INACTIVO);
+            UUID courier = activeCourier();
             shipment.assignCourier(courier);
+            doThrow(new CourierNotActiveException(courier)).when(couriers).requireActive(courier);
 
             assertThatThrownBy(() -> service.changeStatus(SHIPMENT_ID, ShipmentStatus.EN_RUTA, null))
                     .isInstanceOf(CourierNotActiveException.class);
@@ -316,6 +317,7 @@ class ShipmentServiceTest {
         void acceptsEnRouteWithActiveCourier() {
             Shipment shipment = persistedShipment(ShipmentStatus.PENDIENTE);
             shipment.assignCourier(activeCourier());
+                doNothing().when(couriers).requireActive(shipment.getCourierId());
 
             var response = service.changeStatus(SHIPMENT_ID, ShipmentStatus.EN_RUTA, null);
 
@@ -389,14 +391,13 @@ class ShipmentServiceTest {
         @Test
         void cancellationKeepsTheAssignedCourier() {
             Shipment shipment = persistedShipment(ShipmentStatus.PENDIENTE);
-            Courier courier = activeCourier();
-            ReflectionTestUtils.setField(courier, "id", UUID.randomUUID());
+            UUID courier = activeCourier();
             shipment.assignCourier(courier);
 
             var response = service.cancel(SHIPMENT_ID);
 
-            assertThat(response.courierId()).isEqualTo(courier.getId());
-            assertThat(shipment.getCourier()).isSameAs(courier);
+            assertThat(response.courierId()).isEqualTo(courier);
+            assertThat(shipment.getCourierId()).isEqualTo(courier);
         }
 
         /**
@@ -457,8 +458,8 @@ class ShipmentServiceTest {
          *
          * @return repartidor listo para asignar
          */
-        private Courier activeCourier() {
-            return new Courier("Ana", "Moto");
+        private UUID activeCourier() {
+            return UUID.randomUUID();
         }
     }
 }
