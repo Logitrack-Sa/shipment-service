@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-class ShipmentCreationIntegrationTest {
+class ShipmentCreationIntegrationTest extends com.logitrack.shipment.support.JwtTestSupport {
     @Autowired
     private TestRestTemplate http;
     @Autowired
@@ -47,6 +47,11 @@ class ShipmentCreationIntegrationTest {
 
     @BeforeEach
     void clearDatabase() {
+        var jwt = org.springframework.security.oauth2.jwt.Jwt.withTokenValue("unit-admin").header("alg", "RS256")
+                .subject("00000000-0000-0000-0000-000000000001").claim("roles", java.util.List.of("ADMIN")).build();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken(jwt,
+                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))));
         history.deleteAll();
         shipments.deleteAll();
         customers.deleteAll();
@@ -58,7 +63,12 @@ class ShipmentCreationIntegrationTest {
         var api = http.getForEntity("/v3/api-docs", String.class);
         assertThat(api.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(api.getBody()).contains("/api/v1/shipments", "/api/v1/shipments/{id}");
-        assertThat(http.getForEntity("/swagger-ui.html", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+        var documentation = http.getForEntity("/swagger-ui.html", String.class);
+        assertThat(documentation.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(documentation.getBody()).contains("LogiTrack Docs", "/docs/app.js");
+        assertThat(http.getForEntity("/docs/", String.class).getBody()).contains("LogiTrack Docs");
+        assertThat(http.getForEntity("/docs/explorer.html", String.class).getBody()).contains("swagger-ui-bundle.js");
+        assertThat(http.getForEntity("/swagger-ui/swagger-ui-bundle.js", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
@@ -116,6 +126,9 @@ class ShipmentCreationIntegrationTest {
         assertThat(history.count()).isEqualTo(2);
         assertThat(history.findByShipmentIdOrderByChangedAtAsc(created.id())).hasSize(1);
     }
+
+    @org.junit.jupiter.api.AfterEach
+    void clearSecurityContext() { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
 
     private CreateShipmentRequest requestForExistingCustomer() {
         var customer = customers.saveAndFlush(new Customer("Cliente", "cliente@test.com", "3881234567"));

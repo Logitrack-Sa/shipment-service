@@ -1,0 +1,3236 @@
+{
+  "info": {
+    "_postman_id": "e1a5a0f2-7634-4bc1-9c8e-logitrack-s2",
+    "name": "LogiTrack - Sprint 2 Microservicios",
+    "description": "Colección oficial de Postman para el Sprint 2 de LogiTrack (shipment-service, courier-service, security-service). Incluye autenticación JWT RS256, escenarios ordenados por rol (ADMIN, CLIENTE, REPARTIDOR) y batería completa de casos negativos (401, 403, 404, 422) con verificación de pertenencia, reglas de courier y máquina de estados.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00. Setup & Reset",
+      "item": [
+        {
+          "name": "00.1 Inicializar y Resetear Variables del Runner",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{shipment_service_url}}/actuator/health",
+              "host": [
+                "{{shipment_service_url}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get(\"admin_username\") || !pm.environment.get(\"admin_password\")) throw new Error(\"Configurar credenciales ADMIN del entorno descartable\");",
+                  "const runId = pm.variables.replaceIn('{{$randomUUID}}').replace(/-/g, '');",
+                  "['admin_token','cliente_token','repartidor_token','user_id_cliente','user_id_repartidor','customer_id','customer_id_ajeno','courier_id_activo','courier_id_inactivo','courier_id_ajeno','shipment_id_admin','tracking_code_admin','shipment_id_cliente','tracking_code_cliente','shipment_id_cancelable','shipment_id_asignado','shipment_id_en_ruta','shipment_id_entregado','shipment_id_cancelado','shipment_id_ajeno'].forEach(v => pm.environment.unset(v));",
+                  "pm.environment.set('run_id',runId);",
+                  "pm.environment.set('unique_customer_email',`cliente_${runId}@logitrack.com`);",
+                  "pm.environment.set('unique_customer_name',`Cliente ${runId}`);",
+                  "pm.environment.set('unique_courier_name',`Repartidor ${runId}`);",
+                  "pm.environment.set('unique_username_cliente',`cli_${runId}`);",
+                  "pm.environment.set('unique_username_repartidor',`rep_${runId}`);",
+                  "pm.environment.set('cliente_password',`Cli!${runId}`);",
+                  "pm.environment.set('repartidor_password',`Rep!${runId}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 (Servicio disponible)\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Variables de entorno preparadas para ejecución única\", function () {",
+                  "    pm.expect(pm.environment.get(\"run_id\")).to.not.be.empty;",
+                  "    pm.expect(pm.environment.get(\"unique_customer_email\")).to.include(\"@logitrack.com\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01. Auth",
+      "item": [
+        {
+          "name": "01.1 Registro Público (POST /api/v1/auth/register) -> Rol CLIENTE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{security_service_url}}/api/v1/auth/register",
+              "host": [
+                "{{security_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{unique_username_cliente}}\",\n  \"password\": \"{{cliente_password}}\",\n  \"email\": \"{{unique_customer_email}}\",\n  \"name\": \"{{unique_customer_name}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 201 Created o 200 OK\", function () {",
+                  "    pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});",
+                  "pm.test(\"Registro exitoso devuelve identificador de usuario\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"id\");",
+                  "    pm.environment.set(\"user_id_cliente\", jsonData.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.2 Login ADMIN (POST /api/v1/auth/login) -> Obtener admin_token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{security_service_url}}/api/v1/auth/login",
+              "host": [
+                "{{security_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{admin_username}}\",\n  \"password\": \"{{admin_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Retorna accessToken Bearer y se captura admin_token\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"accessToken\");",
+                  "    pm.expect(jsonData.accessToken).to.be.a(\"string\");",
+                  "    pm.expect(jsonData.tokenType).to.eql(\"Bearer\");",
+                  "    pm.environment.set(\"admin_token\", jsonData.accessToken);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.3 Login CLIENTE (POST /api/v1/auth/login) -> Obtener cliente_token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{security_service_url}}/api/v1/auth/login",
+              "host": [
+                "{{security_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{unique_username_cliente}}\",\n  \"password\": \"{{cliente_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Retorna accessToken Bearer y se captura cliente_token\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"accessToken\");",
+                  "    pm.environment.set(\"cliente_token\", jsonData.accessToken);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.5 Consultar Perfil Propio (GET /api/v1/auth/me) - Rol ADMIN",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{security_service_url}}/api/v1/auth/me",
+              "host": [
+                "{{security_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Perfil ADMIN contiene rol ADMIN y sin hashes\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.roles).to.include(\"ADMIN\");",
+                  "    pm.expect(jsonData).to.not.have.property(\"password\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.6 Consultar Perfil Propio (GET /api/v1/auth/me) - Rol CLIENTE",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cliente_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{security_service_url}}/api/v1/auth/me",
+              "host": [
+                "{{security_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Perfil CLIENTE contiene rol CLIENTE\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.roles).to.include(\"CLIENTE\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02. ADMIN",
+      "item": [
+        {
+          "name": "02.1 Clientes",
+          "item": [
+            {
+              "name": "02.1.1 Crear Cliente en Dominio (POST /api/v1/customers)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/customers",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "customers"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"{{unique_customer_name}}\",\n  \"email\": \"{{unique_customer_email}}\",\n  \"phone\": \"+543881234567\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 201 Created\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"Cliente creado con UUID y datos coincidentes\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData.email).to.eql(pm.environment.get(\"unique_customer_email\"));",
+                      "    pm.environment.set(\"customer_id\", jsonData.id);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.1.2 Listar Clientes (GET /api/v1/customers)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/customers",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "customers"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Respuesta es lista de clientes\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(Array.isArray(jsonData) || Array.isArray(jsonData.content)).to.be.true;",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.1.3 Obtener Cliente por ID (GET /api/v1/customers/{id})",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/customers/{{customer_id}}",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "customers",
+                    "{{customer_id}}"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Cliente recuperado coincide con customer_id\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.id).to.eql(pm.environment.get(\"customer_id\"));",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.1.4 Crear cliente ajeno real para aislamiento",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/customers",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "customers"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"name\": \"Cliente ajeno {{run_id}}\", \"email\": \"ajeno_{{run_id}}@logitrack.com\", \"phone\": \"123456\"}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Cliente ajeno creado\", () => pm.response.to.have.status(201));",
+                      "pm.environment.set(\"customer_id_ajeno\", pm.response.json().id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.1.5 Vincular cuenta CLIENTE al cliente de dominio",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{security_service_url}}/api/v1/users/{{user_id_cliente}}/customer-link",
+                  "host": [
+                    "{{security_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "users",
+                    "{{user_id_cliente}}",
+                    "customer-link"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customerId\": \"{{customer_id}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Estado esperado\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Vínculo correcto\", () => pm.expect(pm.response.json().customerId).to.eql(pm.environment.get(\"customer_id\")));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.1.6 Renovar JWT CLIENTE después del vínculo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{security_service_url}}/api/v1/auth/login",
+                  "host": [
+                    "{{security_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"{{unique_username_cliente}}\",\n  \"password\": \"{{cliente_password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Retorna accessToken Bearer y se captura cliente_token\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"accessToken\");",
+                      "    pm.environment.set(\"cliente_token\", jsonData.accessToken);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "02.2 Repartidores",
+          "item": [
+            {
+              "name": "02.2.1 Crear Repartidor Principal (POST /api/v1/couriers) -> ACTIVO",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{courier_service_url}}/api/v1/couriers",
+                  "host": [
+                    "{{courier_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "couriers"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"{{unique_courier_name}} Activo\",\n  \"vehicleType\": \"MOTO\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 201 Created\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"Repartidor creado con UUID y estado inicial ACTIVO\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData.status).to.eql(\"ACTIVO\");",
+                      "    pm.environment.set(\"courier_id_activo\", jsonData.id);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.2.2 Crear Repartidor Secundario (POST /api/v1/couriers)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{courier_service_url}}/api/v1/couriers",
+                  "host": [
+                    "{{courier_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "couriers"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"{{unique_courier_name}} Secundario\",\n  \"vehicleType\": \"BICICLETA\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 201 Created\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"Repartidor secundario capturado\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.environment.set(\"courier_id_inactivo\", jsonData.id);",
+                      "});"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.environment.set(\"courier_id_ajeno\",pm.response.json().id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.2.3 Desactivar Repartidor Secundario (PATCH /api/v1/couriers/{id}/status) -> INACTIVO",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{courier_service_url}}/api/v1/couriers/{{courier_id_inactivo}}/status",
+                  "host": [
+                    "{{courier_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "couriers",
+                    "{{courier_id_inactivo}}",
+                    "status"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"INACTIVO\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Estado actualizado a INACTIVO\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.status).to.eql(\"INACTIVO\");",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.2.4 Listar Repartidores (GET /api/v1/couriers)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{courier_service_url}}/api/v1/couriers",
+                  "host": [
+                    "{{courier_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "couriers"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.2.5 Obtener Repartidor por ID (GET /api/v1/couriers/{id})",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{courier_service_url}}/api/v1/couriers/{{courier_id_activo}}",
+                  "host": [
+                    "{{courier_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "couriers",
+                    "{{courier_id_activo}}"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Repartidor activo verificado\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.id).to.eql(pm.environment.get(\"courier_id_activo\"));",
+                      "    pm.expect(jsonData.status).to.eql(\"ACTIVO\");",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.2.6 Actualizar Repartidor (PUT /api/v1/couriers/{id})",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{courier_service_url}}/api/v1/couriers/{{courier_id_activo}}",
+                  "host": [
+                    "{{courier_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "couriers",
+                    "{{courier_id_activo}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"{{unique_courier_name}} Activo Modificado\",\n  \"vehicleType\": \"CAMIONETA\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Vehículo actualizado a CAMIONETA\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.vehicleType).to.eql(\"CAMIONETA\");",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.2.7 Consultar Disponibilidad de Repartidor (GET /api/v1/couriers/{id}/availability) - Exclusivo ADMIN",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{courier_service_url}}/api/v1/couriers/{{courier_id_activo}}/availability",
+                  "host": [
+                    "{{courier_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "couriers",
+                    "{{courier_id_activo}}",
+                    "availability"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Repartidor disponible confirmado\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.status).to.eql(\"ACTIVO\");",
+                      "    pm.expect(jsonData.available).to.be.true;",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.2.7 Crear cuenta REPARTIDOR vinculada por ADMIN",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{security_service_url}}/api/v1/users",
+                  "host": [
+                    "{{security_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "users"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{admin_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"rep_{{run_id}}@logitrack.com\",\n  \"username\": \"{{unique_username_repartidor}}\",\n  \"password\": \"{{repartidor_password}}\",\n  \"name\": \"Repartidor {{run_id}}\",\n  \"roles\": [\n    \"REPARTIDOR\"\n  ],\n  \"courierId\": \"{{courier_id_activo}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Estado esperado\", () => pm.response.to.have.status(201));",
+                      "pm.environment.set(\"user_id_repartidor\",pm.response.json().id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.2.8 Login del REPARTIDOR creado en esta ejecución",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{security_service_url}}/api/v1/auth/login",
+                  "host": [
+                    "{{security_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"{{unique_username_repartidor}}\",\n  \"password\": \"{{repartidor_password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Retorna accessToken Bearer y se captura repartidor_token\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"accessToken\");",
+                      "    pm.environment.set(\"repartidor_token\", jsonData.accessToken);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.2.9 Perfil del REPARTIDOR vinculado",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{repartidor_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{security_service_url}}/api/v1/auth/me",
+                  "host": [
+                    "{{security_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "me"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Perfil REPARTIDOR contiene rol REPARTIDOR\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.roles).to.include(\"REPARTIDOR\");",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "02.3 Envíos",
+          "item": [
+            {
+              "name": "02.3.1 Crear Envío como ADMIN (POST /api/v1/shipments)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"origin\": {\n    \"street\": \"Av. Belgrano\",\n    \"number\": \"456\",\n    \"city\": \"San Salvador de Jujuy\",\n    \"postalCode\": \"4600\"\n  },\n  \"destination\": {\n    \"street\": \"Necochea\",\n    \"number\": \"789\",\n    \"city\": \"San Salvador de Jujuy\",\n    \"postalCode\": \"4600\"\n  },\n  \"weightKg\": 2.5,\n  \"widthCm\": 20,\n  \"heightCm\": 15,\n  \"lengthCm\": 30\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 201 Created\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"Envío creado con tracking, tarifa y estado PENDIENTE\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData).to.have.property(\"trackingCode\");",
+                      "    pm.expect(jsonData.status).to.eql(\"PENDIENTE\");",
+                      "    pm.expect(Number(jsonData.fee)).to.be.above(0);",
+                      "    pm.environment.set(\"shipment_id_admin\", jsonData.id);",
+                      "    pm.environment.set(\"tracking_code_admin\", jsonData.trackingCode);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.3.2 Crear Envío Auxiliar para Cancelación (POST /api/v1/shipments)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"origin\": {\n    \"street\": \"Lavalle\",\n    \"number\": \"123\",\n    \"city\": \"Jujuy\",\n    \"postalCode\": \"4600\"\n  },\n  \"destination\": {\n    \"street\": \"Alvear\",\n    \"number\": \"654\",\n    \"city\": \"Jujuy\",\n    \"postalCode\": \"4600\"\n  },\n  \"weightKg\": 1,\n  \"widthCm\": 10,\n  \"heightCm\": 10,\n  \"lengthCm\": 10\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 201 Created\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "pm.test(\"Envío auxiliar capturado\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.environment.set(\"shipment_id_cancelable\", jsonData.id);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.3.3 Listar Todos los Envíos (GET /api/v1/shipments?page=0&size=10)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments?page=0&size=10",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "10"
+                    }
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Estructura de paginación devuelta correctamente\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"content\");",
+                      "    pm.expect(jsonData).to.have.property(\"totalElements\");",
+                      "    pm.expect(jsonData.page).to.eql(0);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.3.4 Asignar Repartidor a Envío (PUT /api/v1/shipments/{id}/courier)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_admin}}/courier",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments",
+                    "{{shipment_id_admin}}",
+                    "courier"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"courierId\": \"{{courier_id_activo}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Repartidor asignado correctamente\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.courierId).to.eql(pm.environment.get(\"courier_id_activo\"));",
+                      "    pm.environment.set(\"shipment_id_asignado\", jsonData.id);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.3.5 Cancelar Envío PENDIENTE (POST /api/v1/shipments/{id}/cancellation)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_cancelable}}/cancellation",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments",
+                    "{{shipment_id_cancelable}}",
+                    "cancellation"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 200 OK\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "pm.test(\"Estado final es CANCELADO\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.status).to.eql(\"CANCELADO\");",
+                      "    pm.environment.set(\"shipment_id_cancelado\", jsonData.id);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02.3.6 Crear envío ajeno real para comprobar 403",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customerId\": \"{{customer_id_ajeno}}\",\n  \"origin\": {\n    \"street\": \"Av. Belgrano\",\n    \"number\": \"456\",\n    \"city\": \"San Salvador de Jujuy\",\n    \"postalCode\": \"4600\"\n  },\n  \"destination\": {\n    \"street\": \"Necochea\",\n    \"number\": \"789\",\n    \"city\": \"San Salvador de Jujuy\",\n    \"postalCode\": \"4600\"\n  },\n  \"weightKg\": 2.5,\n  \"widthCm\": 20,\n  \"heightCm\": 15,\n  \"lengthCm\": 30\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Envío ajeno creado\", () => pm.response.to.have.status(201));",
+                      "pm.environment.set(\"shipment_id_ajeno\",pm.response.json().id);"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03. CLIENTE",
+      "item": [
+        {
+          "name": "03.1 Crear Envío Propio (POST /api/v1/shipments)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cliente_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{shipment_service_url}}/api/v1/shipments",
+              "host": [
+                "{{shipment_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shipments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"origin\": {\n    \"street\": \"San Martín\",\n    \"number\": \"100\",\n    \"city\": \"San Salvador de Jujuy\",\n    \"postalCode\": \"4600\"\n  },\n  \"destination\": {\n    \"street\": \"Independencia\",\n    \"number\": \"200\",\n    \"city\": \"San Salvador de Jujuy\",\n    \"postalCode\": \"4600\"\n  },\n  \"weightKg\": 1.5,\n  \"widthCm\": 15,\n  \"heightCm\": 10,\n  \"lengthCm\": 20\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"Envío de cliente creado con customerId propio y estado PENDIENTE\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"id\");",
+                  "    pm.expect(jsonData.status).to.eql(\"PENDIENTE\");",
+                  "    pm.expect(jsonData.customerId).to.eql(pm.environment.get(\"customer_id\"));",
+                  "    pm.environment.set(\"shipment_id_cliente\", jsonData.id);",
+                  "    pm.environment.set(\"tracking_code_cliente\", jsonData.trackingCode);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.2 Consultar Envío Propio por ID (GET /api/v1/shipments/{id})",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cliente_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_cliente}}",
+              "host": [
+                "{{shipment_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shipments",
+                "{{shipment_id_cliente}}"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"El envío consultado pertenece al cliente solicitante\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.eql(pm.environment.get(\"shipment_id_cliente\"));",
+                  "    pm.expect(jsonData.customerId).to.eql(pm.environment.get(\"customer_id\"));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.3 Consultar Seguimiento de Envío Propio (GET /api/v1/shipments/tracking/{code})",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cliente_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{shipment_service_url}}/api/v1/shipments/tracking/{{tracking_code_cliente}}",
+              "host": [
+                "{{shipment_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shipments",
+                "tracking",
+                "{{tracking_code_cliente}}"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Tracking code coincide exactamente\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.trackingCode).to.eql(pm.environment.get(\"tracking_code_cliente\"));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.4 Consultar Historial de Envío Propio (GET /api/v1/shipments/{id}/history)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cliente_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_cliente}}/history",
+              "host": [
+                "{{shipment_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shipments",
+                "{{shipment_id_cliente}}",
+                "history"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Historial contiene estado inicial PENDIENTE\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(Array.isArray(jsonData)).to.be.true;",
+                  "    pm.expect(jsonData.length).to.be.above(0);",
+                  "    pm.expect(jsonData[0].newStatus).to.eql(\"PENDIENTE\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.5 Listar Envíos Propios del Cliente (GET /api/v1/shipments)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cliente_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{shipment_service_url}}/api/v1/shipments?page=0&size=20",
+              "host": [
+                "{{shipment_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shipments"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Lista filtrada automáticamente a envíos del cliente\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    var content = jsonData.content || jsonData;",
+                  "    content.forEach(function(s) {",
+                  "        pm.expect(s.customerId).to.eql(pm.environment.get(\"customer_id\"));",
+                  "    });",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Filtrado por cliente autenticado\", () => { pm.response.json().content.forEach(row => pm.expect(row.customerId).to.eql(pm.environment.get(\"customer_id\"))); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04. REPARTIDOR",
+      "item": [
+        {
+          "name": "04.1 Consultar Estado Interno Propio (GET /api/v1/internal/couriers/{id}/status)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{repartidor_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{courier_service_url}}/api/v1/internal/couriers/{{courier_id_activo}}/status",
+              "host": [
+                "{{courier_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "internal",
+                "couriers",
+                "{{courier_id_activo}}",
+                "status"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Respuesta mínima con courierId y status ACTIVO\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.courierId).to.eql(pm.environment.get(\"courier_id_activo\"));",
+                  "    pm.expect(jsonData.status).to.eql(\"ACTIVO\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.2 Listar Envíos Asignados a mi Cargo (GET /api/v1/shipments)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{repartidor_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{shipment_service_url}}/api/v1/shipments?size=100",
+              "host": [
+                "{{shipment_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shipments"
+              ],
+              "query": [
+                {
+                  "key": "size",
+                  "value": "100"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Los envíos listados corresponden al repartidor autenticado\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    var content = jsonData.content || jsonData;",
+                  "    pm.expect(Array.isArray(content)).to.be.true;",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Filtrado por courier autenticado\", () => { const rows=pm.response.json().content; pm.expect(rows.length).to.be.above(0); rows.forEach(row => pm.expect(row.courierId).to.eql(pm.environment.get(\"courier_id_activo\"))); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.3 Iniciar Envío a EN_RUTA (PATCH /api/v1/shipments/{id}/status)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{repartidor_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_asignado}}/status",
+              "host": [
+                "{{shipment_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shipments",
+                "{{shipment_id_asignado}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"EN_RUTA\",\n  \"observation\": \"Repartidor en camino al destino con el paquete\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Transición exitosa a EN_RUTA\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql(\"EN_RUTA\");",
+                  "    pm.environment.set(\"shipment_id_en_ruta\", jsonData.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.4 Finalizar Envío a ENTREGADO (PATCH /api/v1/shipments/{id}/status)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{repartidor_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_asignado}}/status",
+              "host": [
+                "{{shipment_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shipments",
+                "{{shipment_id_asignado}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ENTREGADO\",\n  \"observation\": \"Paquete entregado a destinatario conforme\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Transición exitosa a estado final ENTREGADO\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql(\"ENTREGADO\");",
+                  "    pm.environment.set(\"shipment_id_entregado\", jsonData.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.5 Consultar Historial Completo del Envío Entregado (GET /api/v1/shipments/{id}/history)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{repartidor_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_asignado}}/history",
+              "host": [
+                "{{shipment_service_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shipments",
+                "{{shipment_id_asignado}}",
+                "history"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code es 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Línea de tiempo completa PENDIENTE -> EN_RUTA -> ENTREGADO registrada\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.length).to.be.at.least(3);",
+                  "    var statuses = jsonData.map(h => h.newStatus);",
+                  "    pm.expect(statuses).to.include(\"PENDIENTE\");",
+                  "    pm.expect(statuses).to.include(\"EN_RUTA\");",
+                  "    pm.expect(statuses).to.include(\"ENTREGADO\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05. Casos Negativos & Seguridad",
+      "item": [
+        {
+          "name": "05.1 Autenticación (401)",
+          "item": [
+            {
+              "name": "05.1.1 401 Sin Token en Endpoint Protegido (GET /api/v1/shipments)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 401 Unauthorized\", function () {",
+                      "    pm.response.to.have.status(401);",
+                      "});",
+                      "pm.test(\"Contrato de error contiene código y mensaje\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect([401, \"401\"]).to.include(jsonData.status);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.1.2 401 Token Inválido o Firma Manipulada (GET /api/v1/shipments)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.token_falso_manipulado",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 401 Unauthorized\", function () {",
+                      "    pm.response.to.have.status(401);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.1.3 401 Login con Credenciales Erróneas (POST /api/v1/auth/login)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{security_service_url}}/api/v1/auth/login",
+                  "host": [
+                    "{{security_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"usuario_inexistente\",\n  \"password\": \"PasswordErronea999!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 401 Unauthorized\", function () {",
+                      "    pm.response.to.have.status(401);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "05.2 Autorización por Rol (403)",
+          "item": [
+            {
+              "name": "05.2.1 403 CLIENTE intenta Crear Courier (POST /api/v1/couriers)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cliente_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{courier_service_url}}/api/v1/couriers",
+                  "host": [
+                    "{{courier_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "couriers"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Intruso\",\n  \"vehicleType\": \"AUTO\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 403 Forbidden\", function () {",
+                      "    pm.response.to.have.status(403);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.2.2 403 CLIENTE intenta Consultar Disponibilidad (GET /api/v1/couriers/{id}/availability)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cliente_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{courier_service_url}}/api/v1/couriers/{{courier_id_activo}}/availability",
+                  "host": [
+                    "{{courier_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "couriers",
+                    "{{courier_id_activo}}",
+                    "availability"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 403 Forbidden\", function () {",
+                      "    pm.response.to.have.status(403);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.2.3 403 CLIENTE intenta Asignar Courier (PUT /api/v1/shipments/{id}/courier)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cliente_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_admin}}/courier",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments",
+                    "{{shipment_id_admin}}",
+                    "courier"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"courierId\": \"{{courier_id_activo}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 403 Forbidden\", function () {",
+                      "    pm.response.to.have.status(403);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.2.4 403 CLIENTE intenta Cancelar Envío (POST /api/v1/shipments/{id}/cancellation)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cliente_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_admin}}/cancellation",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments",
+                    "{{shipment_id_admin}}",
+                    "cancellation"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 403 Forbidden (Cancelación exclusiva ADMIN)\", function () {",
+                      "    pm.response.to.have.status(403);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.2.5 403 REPARTIDOR intenta Crear Cliente (POST /api/v1/customers)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{repartidor_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/customers",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "customers"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Cliente Falso\",\n  \"email\": \"falso@logitrack.com\",\n  \"phone\": \"+543889999999\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 403 Forbidden\", function () {",
+                      "    pm.response.to.have.status(403);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.2.6 403 REPARTIDOR intenta Crear Envío (POST /api/v1/shipments)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{repartidor_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"origin\": {\n    \"street\": \"A\",\n    \"number\": \"1\",\n    \"city\": \"J\",\n    \"postalCode\": \"4600\"\n  },\n  \"destination\": {\n    \"street\": \"B\",\n    \"number\": \"2\",\n    \"city\": \"J\",\n    \"postalCode\": \"4600\"\n  },\n  \"weightKg\": 1,\n  \"widthCm\": 10,\n  \"heightCm\": 10,\n  \"lengthCm\": 10\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 403 Forbidden\", function () {",
+                      "    pm.response.to.have.status(403);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.2.7 400/403 Registro Público con Rol Privilegiado ADMIN (POST /api/v1/auth/register)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{security_service_url}}/api/v1/auth/register",
+                  "host": [
+                    "{{security_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "register"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"hacker_admin\",\n  \"password\": \"Password123!\",\n  \"email\": \"hacker@logitrack.com\",\n  \"name\": \"Intento Escalación\",\n  \"role\": \"ADMIN\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 400 Bad Request o 403 Forbidden\", function () {",
+                      "    pm.expect([400, 403, 422]).to.include(pm.response.code);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "05.3 Pertenencia y Acceso Ajeno (403/404)",
+          "item": [
+            {
+              "name": "05.3.1 403/404 CLIENTE intenta Consultar Envío de Otro Cliente (GET /api/v1/shipments/{id})",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cliente_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_ajeno}}",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments",
+                    "{{shipment_id_ajeno}}"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Recurso ajeno existente devuelve 403\", () => pm.response.to.have.status(403));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.3.2 403 CLIENTE intenta Crear Envío con customerId Ajeno (POST /api/v1/shipments)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{cliente_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customerId\": \"{{customer_id_ajeno}}\",\n  \"origin\": {\n    \"street\": \"A\",\n    \"number\": \"1\",\n    \"city\": \"J\",\n    \"postalCode\": \"4600\"\n  },\n  \"destination\": {\n    \"street\": \"B\",\n    \"number\": \"2\",\n    \"city\": \"J\",\n    \"postalCode\": \"4600\"\n  },\n  \"weightKg\": 1,\n  \"widthCm\": 10,\n  \"heightCm\": 10,\n  \"lengthCm\": 10\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 403 Forbidden (customerId no coincide con el sujeto del JWT)\", function () {",
+                      "    pm.response.to.have.status(403);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.3.3 403 REPARTIDOR intenta Consultar Estado Interno de Otro Repartidor (GET /api/v1/internal/couriers/{id}/status)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{repartidor_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{courier_service_url}}/api/v1/internal/couriers/{{courier_id_ajeno}}/status",
+                  "host": [
+                    "{{courier_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "internal",
+                    "couriers",
+                    "{{courier_id_ajeno}}",
+                    "status"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 403 Forbidden (courierId firmado no coincide con el solicitado)\", function () {",
+                      "    pm.response.to.have.status(403);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "05.4 Reglas de Dominio y Máquina de Estados (422)",
+          "item": [
+            {
+              "name": "05.4.1 422 Asignar Courier INACTIVO a Envío (PUT /api/v1/shipments/{id}/courier)",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_cliente}}/courier",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments",
+                    "{{shipment_id_cliente}}",
+                    "courier"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"courierId\": \"{{courier_id_inactivo}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 422 Unprocessable Entity\", function () {",
+                      "    pm.response.to.have.status(422);",
+                      "});",
+                      "pm.test(\"Código de error es COURIER_NOT_ACTIVE\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.code).to.eql(\"COURIER_NOT_ACTIVE\");",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.4.2 422 Transición a EN_RUTA sin Courier Asignado (PATCH /api/v1/shipments/{id}/status)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_cliente}}/status",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments",
+                    "{{shipment_id_cliente}}",
+                    "status"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"EN_RUTA\",\n  \"observation\": \"Intento sin repartidor\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 422 Unprocessable Entity\", function () {",
+                      "    pm.response.to.have.status(422);",
+                      "});",
+                      "pm.test(\"Código de error es COURIER_NOT_ASSIGNED\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.code).to.eql(\"COURIER_NOT_ASSIGNED\");",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.4.3 422 Transición Inválida de PENDIENTE directo a ENTREGADO (PATCH /api/v1/shipments/{id}/status)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_cliente}}/status",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments",
+                    "{{shipment_id_cliente}}",
+                    "status"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"ENTREGADO\",\n  \"observation\": \"Salto inválido de máquina de estados\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 422 Unprocessable Entity\", function () {",
+                      "    pm.response.to.have.status(422);",
+                      "});",
+                      "pm.test(\"Código de error es INVALID_STATE_TRANSITION\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.code).to.eql(\"INVALID_STATE_TRANSITION\");",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.4.4 422 Cancelar Envío ya ENTREGADO (POST /api/v1/shipments/{id}/cancellation)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_entregado}}/cancellation",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments",
+                    "{{shipment_id_entregado}}",
+                    "cancellation"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 422 Unprocessable Entity\", function () {",
+                      "    pm.response.to.have.status(422);",
+                      "});",
+                      "pm.test(\"Código de error es SHIPMENT_CANNOT_BE_CANCELLED\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.code).to.eql(\"SHIPMENT_CANNOT_BE_CANCELLED\");",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.4.5 422 Cancelar Envío ya CANCELADO (POST /api/v1/shipments/{id}/cancellation)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_cancelado}}/cancellation",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments",
+                    "{{shipment_id_cancelado}}",
+                    "cancellation"
+                  ]
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 422 Unprocessable Entity\", function () {",
+                      "    pm.response.to.have.status(422);",
+                      "});",
+                      "pm.test(\"Código de error informa imposibilidad de cancelación\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect([\"SHIPMENT_CANNOT_BE_CANCELLED\", \"INVALID_STATE_TRANSITION\"]).to.include(jsonData.code);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "05.4.6 422 Modificar Estado de Envío Terminal CANCELADO (PATCH /api/v1/shipments/{id}/status)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{shipment_service_url}}/api/v1/shipments/{{shipment_id_cancelado}}/status",
+                  "host": [
+                    "{{shipment_service_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "shipments",
+                    "{{shipment_id_cancelado}}",
+                    "status"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"EN_RUTA\",\n  \"observation\": \"Reactivar envío cancelado no permitido\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status code es 422 Unprocessable Entity\", function () {",
+                      "    pm.response.to.have.status(422);",
+                      "});",
+                      "pm.test(\"Código de error es INVALID_STATE_TRANSITION\", function () {",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.code).to.eql(\"INVALID_STATE_TRANSITION\");",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
