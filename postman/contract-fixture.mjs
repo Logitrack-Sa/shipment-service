@@ -31,7 +31,7 @@ export function fixture(adminPassword) {
       };
       if (path === '/actuator/health') body = { status: 'UP' };
       else if (path === '/api/v1/auth/register' && request.method === 'POST') {
-        if (data.customerId || data.courierId || data.role && data.role !== 'CLIENTE' || data.roles?.some(r => r !== 'CLIENTE')) fail(403, 'PRIVILEGE_ESCALATION');
+        if (data.customerId || data.courierId || data.role && data.role !== 'CLIENTE' || data.roles?.some(r => r !== 'CLIENTE')) fail(400, 'PRIVILEGE_ESCALATION');
         if ([...users.values()].some(u => u.username === data.username || u.email === data.email)) fail(409, 'DUPLICATE_RESOURCE');
         const user = { ...data, id: randomUUID(), roles: ['CLIENTE'] };
         users.set(user.id, user); body = clean(user); status = 201;
