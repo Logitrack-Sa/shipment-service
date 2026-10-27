@@ -42,3 +42,16 @@ docker compose --env-file target/release/runtime.env -f compose.release.yaml -p 
 ```
 
 No ejecutar `down -v` contra entornos con datos que se quieran conservar. Las credenciales y claves generadas permanecen locales; no adjuntarlas al entregar evidencia.
+
+## Entrega comprobada
+
+Versión `sprint2-20261026.1`: [release, manifiesto y reporte](https://github.com/Logitrack-Sa/shipment-service/releases/tag/sprint2-20261026.1). [Ejecución real aprobada](https://github.com/Logitrack-Sa/shipment-service/actions/runs/40436111809), con los cinco escenarios completos y sin build local. Las cuatro imágenes son públicas para Linux amd64.
+
+| Servicio | Digest publicado | Commit fuente |
+|---|---|---|
+| [shipment-service](https://hub.docker.com/r/alexxe576/logitrack-shipment-service/tags?name=sprint2-20261026.1) | `sha256:992ef94a024cecb71c619cab53f14da35e8cbf917bfe89aa0172955691847bbc` | `f048ce419b7a431510b05a05b135ae3c95e58454` |
+| [courier-service](https://hub.docker.com/r/alexxe576/logitrack-courier-service/tags?name=sprint2-20261026.1) | `sha256:b855ca91ffd40260033fb883691bdcc6f8bec5f5cff0d26f7b9040f3c4fce86e` | `75c6f33626df4f8d8e6b52b823097b74825944a0` |
+| [security-service](https://hub.docker.com/r/alexxe576/logitrack-security-service/tags?name=sprint2-20261026.1) | `sha256:76a1d2c63f8f97452d9ba8abf910ff4ef496b0fbf66617f628bf915a1577d82e` | `b30a72fb3969b1b241f6b6930eeba09785ed33a0` |
+| [config-server](https://hub.docker.com/r/alexxe576/logitrack-config-server/tags?name=sprint2-20261026.1) | `sha256:1e7c69b2bbfd76fe53a430daecf1943b28680cd16b63ab498f1da20024deecba` | `3d02d5500faffa3c000e4d10a13f8644bfbfe08a` |
+
+Docker Hub tiene «All tags are immutable» en estos cuatro repositorios. El control HTTP previo aborta ante errores del registro; la protección del servidor evita sobrescrituras concurrentes. La release está basada en develop y sus tags; la promoción a main requiere revisión humana.
