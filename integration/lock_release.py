@@ -10,6 +10,16 @@ from release_env import load
 IMAGES={'shipment-service':'SHIPMENT_IMAGE','courier-service':'COURIER_IMAGE',
         'security-service':'SECURITY_IMAGE','config-server':'CONFIG_SERVER_IMAGE'}
 
+def expected_revision(service, version):
+    reference=f'refs/tags/{version}'
+    result=subprocess.run(['git','ls-remote',f'https://github.com/Logitrack-Sa/{service}.git',
+                           reference,reference+'^{}'],capture_output=True,text=True,check=True,timeout=30)
+    refs=dict(line.split()[::-1] for line in result.stdout.splitlines())
+    revision=refs.get(reference+'^{}',refs.get(reference,''))
+    if not re.fullmatch('[0-9a-f]{40}',revision):
+        raise ValueError(f'No se encontró el tag fuente de {service}')
+    return revision
+
 def lock(env_file):
     load(env_file)
     namespace,version=os.environ['DOCKERHUB_NAMESPACE'],os.environ['RELEASE_VERSION']
@@ -29,6 +39,8 @@ def lock(env_file):
         revision=labels.get('org.opencontainers.image.revision','')
         if not re.fullmatch('[0-9a-f]{40}',revision) or labels.get('org.opencontainers.image.version') != version:
             raise ValueError(f'Metadatos OCI incompletos de {service}')
+        if revision != expected_revision(service,version):
+            raise ValueError(f'La revisión OCI de {service} no corresponde a su tag Git publicado')
         variables[variable]=tag+'@'+digest.split('@',1)[1]
         manifest['images'][service]={'image':variables[variable],'digest':digest,'sourceRevision':revision}
     path=Path('docs/sprint2/releases')/(version+'.json')
