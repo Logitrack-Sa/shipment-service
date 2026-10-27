@@ -9,6 +9,7 @@ Requisitos: Docker Compose v2, Python 3 y OpenSSL (en Windows puede usarse el in
 ```shell
 python integration/prepare_release.py --namespace alexxe576 --version sprint2-20261026.1 --config-label fca10127f9a949b8f4c748bd96d5bd606bf1af1c
 docker compose --env-file target/release/runtime.env -f compose.release.yaml -p logitrack-e2e-local pull
+python integration/lock_release.py --env-file target/release/runtime.env
 docker compose --env-file target/release/runtime.env -f compose.release.yaml -p logitrack-e2e-local up -d --no-build --wait --wait-timeout 300
 python integration/provision_release.py --env-file target/release/runtime.env
 python integration/verify_release.py --env-file target/release/runtime.env --project logitrack-e2e-local
@@ -31,6 +32,8 @@ Workflows equivalentes por servicio: [shipment PR #74](https://github.com/Logitr
 La publicación se dispara por un tag `sprint2-AAAAMMDD.N` o manualmente desde main/develop. Exige que el commit pertenezca a una rama integrada, ejecuta Maven antes del push y publica únicamente ese tag explícito, sin `latest`. Registra el SHA fuente en etiquetas OCI y el RepoDigest en resumen/artefacto. No se ejecuta desde PR ni forks. Las credenciales deben conservarse en GitHub Secrets; si faltan, el job falla antes de publicar.
 
 Los cuatro repos deben publicar la misma versión. Después, ejecutar `pull` y la verificación completa desde un checkout limpio. Los digests identifican exactamente las imágenes comprobadas. Las pruebas de contrato de Compose no sustituyen esa ejecución real.
+
+El workflow de shipment espera las cuatro imágenes, registra sus revisiones OCI y fija cada referencia por digest antes de arrancar. Genera sus propias credenciales descartables, ejecuta las APIs reales y adjunta el reporte junto al manifiesto de imágenes; nunca adjunta claves ni runtime.env. Los manifiestos acreditados se guardan en `docs/sprint2/releases/`. Al preparar esa versión, el script reutiliza sus digests y rechaza cambios respecto de la entrega registrada. Una versión publicada no debe sobrescribirse: el workflow exige otra versión si el tag ya existe.
 
 ## Detener y conservar datos
 

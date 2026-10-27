@@ -1,5 +1,6 @@
 """Genera credenciales y RSA descartables para la demo, sin sobrescribir entornos."""
 import argparse
+import json
 from pathlib import Path
 import re
 import secrets
@@ -39,6 +40,17 @@ def prepare(directory, namespace, version, config_label):
         values[f'E2E_{actor}_PASSWORD'] = secrets.token_hex(20)
     values['SECURITY_ADMIN_EMAIL'] = values['E2E_ADMIN_USERNAME']
     values['SECURITY_ADMIN_PASSWORD'] = values['E2E_ADMIN_PASSWORD']
+    manifest=Path('docs/sprint2/releases')/(version+'.json')
+    if manifest.exists():
+        locked=json.loads(manifest.read_text())
+        if locked['namespace'] != namespace or locked['configurationRevision'] != config_label:
+            raise ValueError('La configuración solicitada no coincide con la entrega publicada')
+        for service,variable in {'shipment-service':'SHIPMENT_IMAGE','courier-service':'COURIER_IMAGE',
+                                 'security-service':'SECURITY_IMAGE','config-server':'CONFIG_SERVER_IMAGE'}.items():
+            image=locked['images'][service]['image']
+            if not re.fullmatch(re.escape(f'{namespace}/logitrack-{service}:{version}@sha256:')+'[0-9a-f]{64}',image):
+                raise ValueError('Referencia de imagen inválida en el manifiesto publicado')
+            values[variable]=image
     for service,port in (('SHIPMENT',8081),('COURIER',8082),('SECURITY',8083),('CONFIG',8888)):
         values[f'E2E_{service}_URL'] = f'http://127.0.0.1:{port}'
     with env_file.open('x',encoding='utf-8') as output:

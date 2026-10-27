@@ -50,7 +50,7 @@ services:
     networks: [security-storage]
   config-server:
     <<: *app
-    image: ${DOCKERHUB_NAMESPACE:?Definir DOCKERHUB_NAMESPACE}/logitrack-config-server:${RELEASE_VERSION:?Definir RELEASE_VERSION}
+    image: ${CONFIG_SERVER_IMAGE:-${DOCKERHUB_NAMESPACE:?Definir DOCKERHUB_NAMESPACE}/logitrack-config-server:${RELEASE_VERSION:?Definir RELEASE_VERSION}}
     ports: ['127.0.0.1:8888:8888']
     environment:
       SERVER_ADDRESS: 0.0.0.0
@@ -60,7 +60,7 @@ services:
     networks: [backend]
   security-service:
     <<: *app
-    image: ${DOCKERHUB_NAMESPACE:?}/logitrack-security-service:${RELEASE_VERSION:?}
+    image: ${SECURITY_IMAGE:-${DOCKERHUB_NAMESPACE:?}/logitrack-security-service:${RELEASE_VERSION:?}}
     ports: ['127.0.0.1:8083:8083']
     environment:
       SERVER_ADDRESS: 0.0.0.0
@@ -90,7 +90,7 @@ services:
     networks: [backend, security-storage]
   courier-service:
     <<: *app
-    image: ${DOCKERHUB_NAMESPACE:?}/logitrack-courier-service:${RELEASE_VERSION:?}
+    image: ${COURIER_IMAGE:-${DOCKERHUB_NAMESPACE:?}/logitrack-courier-service:${RELEASE_VERSION:?}}
     ports: ['127.0.0.1:8082:8082']
     environment:
       SERVER_ADDRESS: 0.0.0.0
@@ -111,7 +111,7 @@ services:
     networks: [backend, courier-storage]
   shipment-service:
     <<: *app
-    image: ${DOCKERHUB_NAMESPACE:?}/logitrack-shipment-service:${RELEASE_VERSION:?}
+    image: ${SHIPMENT_IMAGE:-${DOCKERHUB_NAMESPACE:?}/logitrack-shipment-service:${RELEASE_VERSION:?}}
     ports: ['127.0.0.1:8081:8081']
     environment:
       SERVER_ADDRESS: 0.0.0.0
