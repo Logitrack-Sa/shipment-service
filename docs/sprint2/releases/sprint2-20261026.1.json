@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "version": "sprint2-20261026.1",
+  "namespace": "alexxe576",
+  "configurationRevision": "fca10127f9a949b8f4c748bd96d5bd606bf1af1c",
+  "images": {
+    "shipment-service": {
+      "image": "alexxe576/logitrack-shipment-service:sprint2-20261026.1@sha256:992ef94a024cecb71c619cab53f14da35e8cbf917bfe89aa0172955691847bbc",
+      "digest": "alexxe576/logitrack-shipment-service@sha256:992ef94a024cecb71c619cab53f14da35e8cbf917bfe89aa0172955691847bbc",
+      "sourceRevision": "f048ce419b7a431510b05a05b135ae3c95e58454"
+    },
+    "courier-service": {
+      "image": "alexxe576/logitrack-courier-service:sprint2-20261026.1@sha256:b855ca91ffd40260033fb883691bdcc6f8bec5f5cff0d26f7b9040f3c4fce86e",
+      "digest": "alexxe576/logitrack-courier-service@sha256:b855ca91ffd40260033fb883691bdcc6f8bec5f5cff0d26f7b9040f3c4fce86e",
+      "sourceRevision": "75c6f33626df4f8d8e6b52b823097b74825944a0"
+    },
+    "security-service": {
+      "image": "alexxe576/logitrack-security-service:sprint2-20261026.1@sha256:76a1d2c63f8f97452d9ba8abf910ff4ef496b0fbf66617f628bf915a1577d82e",
+      "digest": "alexxe576/logitrack-security-service@sha256:76a1d2c63f8f97452d9ba8abf910ff4ef496b0fbf66617f628bf915a1577d82e",
+      "sourceRevision": "b30a72fb3969b1b241f6b6930eeba09785ed33a0"
+    },
+    "config-server": {
+      "image": "alexxe576/logitrack-config-server:sprint2-20261026.1@sha256:1e7c69b2bbfd76fe53a430daecf1943b28680cd16b63ab498f1da20024deecba",
+      "digest": "alexxe576/logitrack-config-server@sha256:1e7c69b2bbfd76fe53a430daecf1943b28680cd16b63ab498f1da20024deecba",
+      "sourceRevision": "3d02d5500faffa3c000e4d10a13f8644bfbfe08a"
+    }
+  }
+}
