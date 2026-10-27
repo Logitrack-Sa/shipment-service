@@ -1,0 +1,17 @@
+name: Contrato de entrega Compose
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+permissions:
+  contents: read
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Validar imágenes, aislamiento, health y secretos requeridos
+        run: python3 -m unittest discover -s integration -p test_release_compose.py
