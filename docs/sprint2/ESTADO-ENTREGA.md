@@ -8,9 +8,18 @@ La entrega Docker `sprint2-20261026.1` está publicada y probada. [Release con l
 - Courier: funcionalidades, seguridad y Config Client reunidos en develop mediante [PR #17](https://github.com/Logitrack-Sa/courier-service/pull/17); publicación corregida en [PR #18](https://github.com/Logitrack-Sa/courier-service/pull/18). CI Maven/MySQL/Docker aprobada.
 - Security: login, JWT, roles y usuarios disponibles en develop; publicación y espera acotada del bootstrap ADMIN mediante [PR #21](https://github.com/Logitrack-Sa/security-service/pull/21) y [PR #22](https://github.com/Logitrack-Sa/security-service/pull/22). CI Java/MySQL y smoke Docker aprobados.
 - Config Server: base corregida integrada en develop mediante [PR #8](https://github.com/Logitrack-Sa/config-server/pull/8) y publicación ajustada en [PR #9](https://github.com/Logitrack-Sa/config-server/pull/9). Ocho pruebas y smoke con Git aprobados.
-- Config repo: se usa exactamente `fca10127f9a949b8f4c748bd96d5bd606bf1af1c`, disponible en la rama correctiva del [PR #5](https://github.com/Logitrack-Sa/config-repo/pull/5). Ese PR sigue pendiente; no afirmar que su main ya tenga esa configuración.
+- Config repo: el [PR #5](https://github.com/Logitrack-Sa/config-repo/pull/5) se integró en main mediante `a8cec81f0a83545ab96e4b5621314205fb666f8b`. La entrega Docker conserva su revisión de configuración exacta `fca10127f9a949b8f4c748bd96d5bd606bf1af1c`, incluida en ese merge.
 
-Los tags de los cuatro servicios corresponden a los commits del manifiesto. La release es preliminar porque sigue pendiente la revisión humana y la promoción de estas ramas a main. Los checks y el reporte no equivalen a esa aprobación.
+Los tags de los cuatro servicios corresponden a los commits del manifiesto. El mantenedor autorizó promover las tarjetas en revisión a main el 26/10/2026. La promoción se reúne en estos PR; sus enlaces muestran el estado y los checks vigentes:
+
+| Repositorio | PR de promoción a main | Issues del tablero |
+|---|---|---|
+| Shipment | [#76](https://github.com/Logitrack-Sa/shipment-service/pull/76) | #61–#65 |
+| Courier | [#19](https://github.com/Logitrack-Sa/courier-service/pull/19) | #1–#6 |
+| Security | [#23](https://github.com/Logitrack-Sa/security-service/pull/23) | #1–#8 |
+| Config Server | [#10](https://github.com/Logitrack-Sa/config-server/pull/10) | #1–#2 |
+
+Config Server agrega una novena prueba aislada: Git HTTP 503 debe impedir el bootstrap. La aplicación de las imágenes publicadas se conserva; la promoción añade esa prueba y precisiones documentales. La autorización del mantenedor y las devoluciones IA no se registran como aprobaciones humanas ficticias en GitHub. Los digests acreditados permanecen iguales.
 
 ## Issues y evidencia
 
