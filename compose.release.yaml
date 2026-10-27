@@ -1,0 +1,149 @@
+# Entrega de cuatro aplicaciones: solo imágenes versionadas, sin build local.
+x-app: &app
+  restart: unless-stopped
+  user: '10001:10001'
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: [/tmp]
+  healthcheck:
+    test: [CMD, bash, -ec, "exec 3<>/dev/tcp/127.0.0.1/$$SERVER_PORT; printf 'GET /actuator/health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3; read -r status <&3; [[ $$status == *' 200 '* ]]"]
+    interval: 10s
+    timeout: 5s
+    start_period: 60s
+    retries: 12
+x-db: &db
+  image: mysql:8.4
+  restart: unless-stopped
+  healthcheck:
+    test: [CMD-SHELL, "MYSQL_PWD=$$MYSQL_PASSWORD mysql --protocol=tcp -h 127.0.0.1 -u$$MYSQL_USER -D$$MYSQL_DATABASE -e 'SELECT 1'"]
+    interval: 5s
+    timeout: 5s
+    start_period: 30s
+    retries: 30
+services:
+  shipment-db:
+    <<: *db
+    environment:
+      MYSQL_DATABASE: shipment_db
+      MYSQL_USER: shipment_user
+      MYSQL_PASSWORD: ${SHIPMENT_DB_PASSWORD:?Definir SHIPMENT_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${SHIPMENT_DB_ROOT_PASSWORD:?Definir SHIPMENT_DB_ROOT_PASSWORD}
+    volumes: [shipment-data:/var/lib/mysql]
+    networks: [shipment-storage]
+  courier-db:
+    <<: *db
+    environment:
+      MYSQL_DATABASE: courier_db
+      MYSQL_USER: courier_user
+      MYSQL_PASSWORD: ${COURIER_DB_PASSWORD:?Definir COURIER_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${COURIER_DB_ROOT_PASSWORD:?Definir COURIER_DB_ROOT_PASSWORD}
+    volumes: [courier-data:/var/lib/mysql]
+    networks: [courier-storage]
+  security-db:
+    <<: *db
+    environment:
+      MYSQL_DATABASE: security_db
+      MYSQL_USER: security_user
+      MYSQL_PASSWORD: ${SECURITY_DB_PASSWORD:?Definir SECURITY_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${SECURITY_DB_ROOT_PASSWORD:?Definir SECURITY_DB_ROOT_PASSWORD}
+    volumes: [security-data:/var/lib/mysql]
+    networks: [security-storage]
+  config-server:
+    <<: *app
+    image: ${DOCKERHUB_NAMESPACE:?Definir DOCKERHUB_NAMESPACE}/logitrack-config-server:${RELEASE_VERSION:?Definir RELEASE_VERSION}
+    ports: ['127.0.0.1:8888:8888']
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: '8888'
+      CONFIG_GIT_URI: https://github.com/Logitrack-Sa/config-repo.git
+      CONFIG_GIT_LABEL: ${CONFIG_GIT_LABEL:?Definir revisión Git de configuración}
+    networks: [backend]
+  security-service:
+    <<: *app
+    image: ${DOCKERHUB_NAMESPACE:?}/logitrack-security-service:${RELEASE_VERSION:?}
+    ports: ['127.0.0.1:8083:8083']
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: '8083'
+      SPRING_PROFILES_ACTIVE: prod
+      CONFIG_SERVER_URL: http://config-server:8888
+      DB_URL: jdbc:mysql://security-db:3306/security_db?sslMode=REQUIRED&serverTimezone=UTC
+      DB_USERNAME: security_user
+      DB_PASSWORD: ${SECURITY_DB_PASSWORD:?}
+      JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      JWT_KEY_ID: ${JWT_KEY_ID:?}
+      JWT_ISSUER: ${JWT_ISSUER:?}
+      JWT_AUDIENCE: security-service
+      JWT_AUDIENCES: security-service,courier-service,shipment-service
+      JWT_TTL: ${JWT_TTL:?}
+      SECURITY_ADMIN_ENABLED: 'true'
+      SECURITY_ADMIN_USERNAME: ${SECURITY_ADMIN_USERNAME:?}
+      SECURITY_ADMIN_EMAIL: ${SECURITY_ADMIN_EMAIL:?}
+      SECURITY_ADMIN_PASSWORD: ${SECURITY_ADMIN_PASSWORD:?}
+    secrets:
+      - {source: jwt-private, target: jwt-private.pem}
+      - {source: jwt-public, target: jwt-public.pem}
+    depends_on:
+      config-server: {condition: service_healthy}
+      security-db: {condition: service_healthy}
+    networks: [backend, security-storage]
+  courier-service:
+    <<: *app
+    image: ${DOCKERHUB_NAMESPACE:?}/logitrack-courier-service:${RELEASE_VERSION:?}
+    ports: ['127.0.0.1:8082:8082']
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: '8082'
+      SPRING_PROFILES_ACTIVE: prod
+      CONFIG_SERVER_URL: http://config-server:8888
+      DB_URL: jdbc:mysql://courier-db:3306/courier_db?sslMode=REQUIRED&serverTimezone=UTC
+      DB_USERNAME: courier_user
+      DB_PASSWORD: ${COURIER_DB_PASSWORD:?}
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      JWT_KEY_ID: ${JWT_KEY_ID:?}
+      JWT_ISSUER: ${JWT_ISSUER:?}
+      JWT_AUDIENCE: courier-service
+    secrets: [{source: jwt-public, target: jwt-public.pem}]
+    depends_on:
+      config-server: {condition: service_healthy}
+      courier-db: {condition: service_healthy}
+    networks: [backend, courier-storage]
+  shipment-service:
+    <<: *app
+    image: ${DOCKERHUB_NAMESPACE:?}/logitrack-shipment-service:${RELEASE_VERSION:?}
+    ports: ['127.0.0.1:8081:8081']
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: '8081'
+      SPRING_PROFILES_ACTIVE: prod
+      CONFIG_SERVER_URL: http://config-server:8888
+      DB_URL: jdbc:mysql://shipment-db:3306/shipment_db?sslMode=REQUIRED&serverTimezone=UTC
+      DB_USERNAME: shipment_user
+      DB_PASSWORD: ${SHIPMENT_DB_PASSWORD:?}
+      COURIER_SERVICE_URL: http://courier-service:8082
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      JWT_KEY_ID: ${JWT_KEY_ID:?}
+      JWT_ISSUER: ${JWT_ISSUER:?}
+      JWT_AUDIENCE: shipment-service
+      FEE_BASE: '1000.00'
+      FEE_PRICE_PER_KG: '250.00'
+      FEE_VOLUMETRIC_DIVISOR: '5000'
+    secrets: [{source: jwt-public, target: jwt-public.pem}]
+    depends_on:
+      config-server: {condition: service_healthy}
+      shipment-db: {condition: service_healthy}
+      courier-service: {condition: service_healthy}
+    networks: [backend, shipment-storage]
+secrets:
+  jwt-private: {file: '${JWT_PRIVATE_KEY_FILE:?Definir JWT_PRIVATE_KEY_FILE}'}
+  jwt-public: {file: '${JWT_PUBLIC_KEY_FILE:?Definir JWT_PUBLIC_KEY_FILE}'}
+volumes:
+  shipment-data:
+  courier-data:
+  security-data:
+networks:
+  backend:
+  shipment-storage: {internal: true}
+  courier-storage: {internal: true}
+  security-storage: {internal: true}
