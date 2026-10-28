@@ -1,0 +1,30 @@
+# Solo CI: shipment y MySQL reales; dependencias HTTP simuladas.
+services:
+  contract-fixture:
+    image: python:3.13-slim@sha256:57b29a7c050c4e679e4bea572e14b3965cf4b5839de2da49d55e49ffc4024f39
+    command: [python, /fixture/server.py]
+    volumes:
+      - ${SMOKE_FIXTURE_DIR:?}/config.json:/fixture/config.json:ro
+      - ${SMOKE_FIXTURE_DIR:?}/token.sha256:/fixture/token.sha256:ro
+      - ./.github/scripts/contract_fixture.py:/fixture/server.py:ro
+    networks: [shipment-net]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8765/shipment-service/dev')"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+  shipment-service:
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      CONFIG_SERVER_URL: http://contract-fixture:8765
+      DB_URL: jdbc:mysql://mysql:3306/${DB_NAME}?sslMode=REQUIRED&serverTimezone=UTC
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+    depends_on:
+      contract-fixture:
+        condition: service_healthy

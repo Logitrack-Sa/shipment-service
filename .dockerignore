@@ -1,0 +1,11 @@
+**
+!Dockerfile
+!pom.xml
+!src/
+!src/main/
+!src/main/**
+**/*.pem
+**/*.key
+**/*.p12
+**/*.jks
+**/.env*

@@ -1,0 +1,24 @@
+name: Contrato y secuencia Postman
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+permissions:
+  contents: read
+jobs:
+  collection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+      - name: Preparar Newman fijado
+        run: npm install --prefix "$RUNNER_TEMP/postman" --no-audit --no-fund --ignore-scripts newman@6.2.1
+      - name: Dos ejecuciones completas contra fixtures HTTP
+        env:
+          NEWMAN_MODULE: ${{ runner.temp }}/postman/node_modules/newman
+        run: node postman/verify-contract.mjs

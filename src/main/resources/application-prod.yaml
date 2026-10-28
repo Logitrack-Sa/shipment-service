@@ -1,0 +1,7 @@
+spring:
+  config:
+    import: configserver:${CONFIG_SERVER_URL:http://localhost:8888}
+  cloud:
+    config:
+      request-connect-timeout: 3000
+      request-read-timeout: 5000

@@ -1,0 +1,6 @@
+{
+  "status": 422,
+  "body": {
+    "code": "COURIER_NOT_ACTIVE"
+  }
+}

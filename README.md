@@ -85,11 +85,16 @@ Cambiar la configuración requiere reiniciar la aplicación.
 
 ## Clientes
 
-| Método | Ruta | Resultado |
-| --- | --- | --- |
-| POST | `/api/v1/customers` | 201 Created con header `Location` y datos del cliente |
-| GET | `/api/v1/customers/{id}` | 200 OK con detalle por UUID o 404 Not Found |
-| GET | `/api/v1/customers?page=0&size=20` | 200 OK con página de clientes |
+### Características Principales
+- **Entidad `Courier`**: Diseñada bajo un modelo de dominio rico que extiende de
+`BaseEntity` (incluyendo ID de tipo UUID y campos de auditoría).
+- **Control de Estados**: Manejo de `CourierStatus` (`ACTIVO` por defecto, con
+capacidad de cambio a `INACTIVO`).
+- **DTOs y Mapeo**: Separación estricta de responsabilidades mediante DTOs
+específicos (`CourierRequest`, `CourierResponse`, `CourierStatusRequest`)
+y un `CourierMapper`.
+- **Paginación y Filtrado**: Listado paginado con soporte para filtrado opcional
+mediante el estado del repartidor.
 
 ## Manejo global de excepciones (Issue #17)
 

@@ -192,10 +192,7 @@ public class CustomerController {
         @ApiResponse(
             responseCode = "200",
             description = "Listado de clientes obtenido correctamente",
-            content = @Content(
-                mediaType = "application/json",
-                schema = @Schema(implementation = CustomerResponse.class)
-            )
+            useReturnTypeSchema = true
         ),
         @ApiResponse(
             responseCode = "400",
