@@ -31,9 +31,9 @@ colisiones y rollback contra un MySQL 8.4 efímero. También verifica health,
 Swagger y OpenAPI por HTTP. Ese smoke test crea el esquema únicamente en su
 base aislada; la validación de migraciones productivas sigue en #27/#30.
 
-La suite unitaria (incluyendo el cliente declarativo Feign, resiliencia y la asignación de repartidores) puede ejecutarse sin BD ni red externa:
+La suite de comunicación Feign, descubrimiento dinámico y resiliencia (ver detalle en [docs/sprint3/TESTING-FEIGN.md](docs/sprint3/TESTING-FEIGN.md)) puede ejecutarse sin BD externa ni contenedores adicionales:
 ```shell
-./mvnw test -Dtest=HttpCourierLookupTest,AssignCourierTest,ShipmentServiceTest,FeeCalculatorTest,GlobalExceptionHandlerTest
+./mvnw test -Dtest=FeignCourierCommunicationIntegrationTest,HttpCourierLookupTest,AssignCourierTest,ShipmentServiceTest,FeeCalculatorTest,GlobalExceptionHandlerTest
 ```
 
 ## Convenciones
@@ -77,7 +77,7 @@ Ejemplo: 2,5 kg y 30 × 20 × 40 cm tienen peso facturable de 4,8 kg y tarifa
 de 2200,00. Base y precio no negativos; divisor, peso y medidas positivos.
 Cambiar la configuración requiere reiniciar la aplicación.
 
-## Comunicación con `courier-service` y Resiliencia (OpenFeign + Eureka · Issues #84 y #85)
+## Comunicación con `courier-service` y Resiliencia (OpenFeign + Eureka · Issues #84, #85 y #86)
 
 `shipment-service` valida la disponibilidad y el estado de los repartidores comunicándose con `courier-service` mediante un cliente declarativo de **Spring Cloud OpenFeign** (`CourierFeignClient`), resolución dinámica de instancias a través de **Eureka Server (`:8065`)** y manejo resiliente de errores (`CourierErrorDecoder` + `CourierFeignFallbackFactory`):
 
@@ -85,7 +85,7 @@ Cambiar la configuración requiere reiniciar la aplicación.
 - **Endpoints consumidos**:
   - `GET /api/v1/couriers/{id}/availability` — valida disponibilidad al asignar un repartidor a un envío pendiente.
   - `GET /api/v1/internal/couriers/{id}/status` — valida que el repartidor asignado siga `ACTIVO` al pasar un envío a `EN_RUTA`.
-- **Seguridad y propagación de JWT**: Las peticiones externas ingresan por el **API Gateway (`:8080`)** y el `RequestInterceptor` de `CourierClientConfig` propaga el encabezado `Authorization: Bearer <token>` validado en el `SecurityContextHolder` hacia `courier-service` en el mismo hilo de ejecución (`spring.cloud.circuitbreaker.resilience4j.disable-time-limiter=true`).
+- **Seguridad y propagación de JWT**: Las peticiones externas ingresan por el **API Gateway (`:8080`)** y `FeignCourierLookup` junto con `CourierClientConfig` propagan el encabezado `Authorization: Bearer <token>` validado en el `SecurityContextHolder` hacia `courier-service`.
 - **Resiliencia y comportamiento cuando `courier-service` falla o no está disponible (Issue #85)**:
   - **`CourierErrorDecoder`**: Traduce respuestas HTTP no exitosas de `courier-service`:
     - `HTTP 404` $\rightarrow$ `ResourceNotFoundException` (`404 RESOURCE_NOT_FOUND`).
