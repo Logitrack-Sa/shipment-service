@@ -12,6 +12,13 @@ spring:
   flyway:
     enabled: true
     validate-on-migrate: true
+eureka:
+  client:
+    enabled: ${EUREKA_CLIENT_ENABLED:true}
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8065/eureka/}
+  instance:
+    prefer-ip-address: true
 management:
   endpoints.web.exposure.include: health,info
   endpoint.health.show-details: never

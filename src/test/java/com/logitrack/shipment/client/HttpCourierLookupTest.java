@@ -6,12 +6,15 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.cloud.client.DefaultServiceInstance;
+import org.springframework.cloud.client.loadbalancer.LoadBalanced;
+import org.springframework.cloud.loadbalancer.core.ServiceInstanceListSupplier;
+import org.springframework.cloud.loadbalancer.support.ServiceInstanceListSuppliers;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.web.client.RestClient;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -24,7 +27,7 @@ import static org.assertj.core.api.Assertions.*;
 class HttpCourierLookupTest {
     static final UUID ID = UUID.fromString("20000000-0000-0000-0000-000000000001");
     HttpServer server;
-    HttpCourierLookup client;
+    FeignCourierLookup client;
     int responseStatus = 200;
     String responseBody;
     long delay;
@@ -58,10 +61,10 @@ class HttpCourierLookupTest {
         client = clientAt(server.getAddress().getPort());
     }
 
-    HttpCourierLookup clientAt(int port) {
+    FeignCourierLookup clientAt(int port) {
         var props = new CourierProperties(URI.create("http://127.0.0.1:" + port),
                 Duration.ofMillis(200), Duration.ofMillis(300));
-        return new HttpCourierLookup(new CourierClientConfig().courierRestClient(RestClient.builder(), props));
+        return new FeignCourierLookup(new CourierClientConfig().createClient(props));
     }
 
     @AfterEach void cleanup() {
@@ -82,6 +85,21 @@ class HttpCourierLookupTest {
         client.requireActive(ID);
         assertThat(receivedPath).isEqualTo("/api/v1/internal/couriers/" + ID + "/status");
         assertThat(receivedBearer).isEqualTo("Bearer validated-bearer");
+    }
+
+    @Test void allowsDynamicServiceDiscoveryWithoutFixedBaseUrl() {
+        var props = new CourierProperties(null, Duration.ofMillis(200), Duration.ofMillis(300), "courier-service");
+        assertThat(props.isValid()).isTrue();
+        assertThat(props.baseUrl()).isNull();
+        assertThat(props.serviceId()).isEqualTo("courier-service");
+
+        ServiceInstanceListSupplier supplier = ServiceInstanceListSuppliers.from("courier-service",
+                new DefaultServiceInstance("courier-1", "courier-service", "127.0.0.1", server.getAddress().getPort(), false));
+        var instance = supplier.get().blockFirst().getFirst();
+        var discoveredProps = new CourierProperties(instance.getUri(), props.connectTimeout(), props.readTimeout(), props.serviceId());
+        var discoveredClient = new FeignCourierLookup(new CourierClientConfig().createClient(discoveredProps));
+        discoveredClient.requireAvailable(ID);
+        assertThat(receivedPath).isEqualTo("/api/v1/couriers/" + ID + "/availability");
     }
 
     @Test void rejectsInactiveWithoutRetry() throws Exception {

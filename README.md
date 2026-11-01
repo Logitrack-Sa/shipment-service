@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Logitrack-Sa/shipment-service/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Logitrack-Sa/shipment-service/actions/workflows/ci.yml)
 
-API de gestión de envíos. Java 25, Spring Boot 3.5 y Maven Wrapper.
+API de gestión de envíos. Java 25, Spring Boot 3.5, Spring Cloud 2025.0 (Config, Eureka Client, OpenFeign) y Maven Wrapper.
 
 ## Desarrollo
 
@@ -11,15 +11,13 @@ API de gestión de envíos. Java 25, Spring Boot 3.5 y Maven Wrapper.
 3. Configurar `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`
    según `.env.example`. Spring no carga `.env` automáticamente: definir las
    variables en la configuración de ejecución del IDE o en el entorno.
-4. Con MySQL disponible: `./mvnw spring-boot:run` (`.\mvnw.cmd` en Windows).
+4. Con MySQL, Config Server y Eureka Server (`http://localhost:8065/eureka/`) disponibles: `./mvnw spring-boot:run` (`.\mvnw.cmd` en Windows).
 
 La aplicación expone `/actuator/health`, `/swagger-ui.html` y `/v3/api-docs`.
-Hibernate valida el esquema; las migraciones de MySQL se entregan en #27.
-La configuración bancaria del ejemplo anterior se retiró del servicio de envíos.
+Las solicitudes externas ingresan a través del **API Gateway (`:8080`)**, mientras que el descubrimiento de instancias se realiza mediante **Eureka Server (`:8065`)**.
 
 El Compose actual levanta solo MySQL 8.4: copiar `.env.example` a `.env`,
 elegir contraseñas locales y ejecutar `docker compose up -d mysql`.
-La imagen de la aplicación y el Compose completo se implementan en #26.
 
 ## Pruebas
 
@@ -36,32 +34,31 @@ colisiones y rollback contra un MySQL 8.4 efímero. También verifica health,
 Swagger y OpenAPI por HTTP. Ese smoke test crea el esquema únicamente en su
 base aislada; la validación de migraciones productivas sigue en #27/#30.
 
-La suite unitaria puede ejecutarse sin BD ni red, con las dependencias ya
-descargadas: `./mvnw -o -Dtest=ShipmentServiceTest,FeeCalculatorTest test`.
+La suite unitaria (incluyendo el cliente declarativo Feign y la asignación de repartidores) puede ejecutarse sin BD ni red externa:
+```shell
+./mvnw test -Dtest=HttpCourierLookupTest,AssignCourierTest,ShipmentServiceTest,FeeCalculatorTest
+```
 
 ## Convenciones
 
 - Paquete raíz: `com.logitrack.shipment`. Capas: `controller`, `service`,
-  `repository`, `entity`, `dto`, `mapper`, `exception` y `config`.
+  `repository`, `entity`, `dto`, `mapper`, `exception`, `client` y `config`.
 - Clases y paquetes en inglés; estados del negocio en español.
 - Endpoints bajo `/api/v1`, con sustantivos plurales.
 - DTOs inmutables, validación de entrada y mappers manuales breves. La API no
   expone entidades JPA ni `Page` de Spring.
 - Inyección por constructor; transacciones en servicios; lecturas con
   `readOnly = true`; dinero con `BigDecimal`.
-- Ramas `feature/<issue>-descripcion`, `chore/...`, `test/...` o `docs/...`.
+- Ramas `feat/s3-<issue>-descripcion`, `feature/<issue>-descripcion`, `chore/...`, `test/...` o `docs/...`.
 - Commits Conventional Commits breves, con descripción en español.
 - Cambios mediante PR con `Closes #N` y aprobación de otro integrante.
   Nadie publica directamente en `main`.
 
 ## Modelo y decisiones
 
-Las entidades usan UUID y auditoría compartida. `courier` es opcional hasta la
+Las entidades usan UUID y auditoría compartida. `courierId` es opcional hasta la
 asignación; los cambios de estado requieren historial persistido. Peso y medidas
 usan `BigDecimal` para evitar errores binarios en el cálculo de tarifa.
-
-El documento `doc/Issue1.md` corresponde al ejemplo anterior; el alcance vigente
-está en las issues #12–#33 de GitHub.
 
 ## Tarifa propuesta
 
@@ -83,18 +80,23 @@ Ejemplo: 2,5 kg y 30 × 20 × 40 cm tienen peso facturable de 4,8 kg y tarifa
 de 2200,00. Base y precio no negativos; divisor, peso y medidas positivos.
 Cambiar la configuración requiere reiniciar la aplicación.
 
-## Clientes
+## Comunicación con `courier-service` (OpenFeign + Eureka · Issue #84)
 
-### Características Principales
-- **Entidad `Courier`**: Diseñada bajo un modelo de dominio rico que extiende de
-`BaseEntity` (incluyendo ID de tipo UUID y campos de auditoría).
-- **Control de Estados**: Manejo de `CourierStatus` (`ACTIVO` por defecto, con
-capacidad de cambio a `INACTIVO`).
-- **DTOs y Mapeo**: Separación estricta de responsabilidades mediante DTOs
-específicos (`CourierRequest`, `CourierResponse`, `CourierStatusRequest`)
-y un `CourierMapper`.
-- **Paginación y Filtrado**: Listado paginado con soporte para filtrado opcional
-mediante el estado del repartidor.
+`shipment-service` valida la disponibilidad y el estado de los repartidores comunicándose con `courier-service` mediante un cliente declarativo de **Spring Cloud OpenFeign** (`CourierFeignClient`) y resolución dinámica de instancias a través de **Eureka Server (`:8065`)**:
+
+- **Descubrimiento dinámico**: `@FeignClient(name = "${logitrack.courier.service-id:courier-service}", url = "${logitrack.courier.base-url:}")` localiza las instancias de `courier-service` registradas en Eureka sin requerir direcciones IP ni puertos fijos.
+- **Endpoints consumidos**:
+  - `GET /api/v1/couriers/{id}/availability` — valida disponibilidad al asignar un repartidor a un envío pendiente.
+  - `GET /api/v1/internal/couriers/{id}/status` — valida que el repartidor asignado siga `ACTIVO` al pasar un envío a `EN_RUTA`.
+- **Seguridad y propagación de JWT**: Las peticiones externas ingresan por el **API Gateway (`:8080`)** y el `RequestInterceptor` de `CourierClientConfig` propaga el encabezado `Authorization: Bearer <token>` validado en el `SecurityContextHolder` hacia `courier-service`.
+
+| Propiedad | Default | Variable de entorno |
+| --- | --- | --- |
+| `eureka.client.service-url.defaultZone` | `http://localhost:8065/eureka/` | `EUREKA_SERVER_URL` |
+| `logitrack.courier.service-id` | `courier-service` | — |
+| `logitrack.courier.connect-timeout` | `500ms` | — |
+| `logitrack.courier.read-timeout` | `1s` | — |
+| `logitrack.courier.base-url` | *(opcional, vacío con Eureka)* | `COURIER_SERVICE_URL` |
 
 ## Manejo global de excepciones (Issue #17)
 
@@ -132,6 +134,7 @@ los clientes reaccionen sin parsear el mensaje.
 | `ShipmentCannotBeCancelledException` | 422 | `SHIPMENT_CANNOT_BE_CANCELLED` | no |
 | `CourierNotActiveException` | 422 | `COURIER_NOT_ACTIVE` | no |
 | `CourierNotAssignedException` | 422 | `COURIER_NOT_ASSIGNED` | no |
+| `RemoteCourierException` | 401 / 403 / 503 | `COURIER_UNAUTHORIZED` / `COURIER_FORBIDDEN` / `COURIER_UNAVAILABLE` | no |
 | `MethodArgumentNotValidException` (`@Valid` en el body) | 400 | `VALIDATION_ERROR` | sí, por campo |
 | `ConstraintViolationException` (parámetros `@Validated`) | 400 | `CONSTRAINT_VIOLATION` | sí, por parámetro |
 | `HttpMessageNotReadableException` (JSON malformado / enum inválido) | 400 | `MALFORMED_REQUEST` | no |
@@ -152,8 +155,6 @@ excepción correspondiente:
 ./mvnw test -Dtest=GlobalExceptionHandlerTest
 ```
 
-## Correr la aplicación
-
 ## Envíos
 
 | Método | Ruta | Resultado |
@@ -162,6 +163,8 @@ excepción correspondiente:
 | GET | `/api/v1/shipments/{id}` | Detalle por UUID |
 | GET | `/api/v1/shipments/tracking/{trackingCode}` | Detalle por seguimiento |
 | GET | `/api/v1/shipments?status=PENDIENTE&page=0&size=20` | Página, con estado opcional |
+| PUT | `/api/v1/shipments/{id}/courier` | Asigna repartidor validando disponibilidad vía OpenFeign |
+| PATCH | `/api/v1/shipments/{id}/status` | Cambia estado (valida repartidor activo en `EN_RUTA` vía OpenFeign) |
 
 La paginación empieza en 0, admite entre 1 y 100 elementos y ordena por fecha
 de creación descendente y UUID. La respuesta contiene `content`, `page`, `size`,
@@ -173,8 +176,3 @@ El tracking usa SecureRandom (`LT-` y diez caracteres alfanuméricos mayúsculos
 preconsulta de existencia e índice único en BD. Cada intento de alta es una
 transacción independiente; se reintenta únicamente una colisión de tracking y
 se aborta después de cinco intentos. Envío e historial se confirman juntos.
-
-Las entidades básicas de cliente/repartidor, el contrato de errores y el
-recorder de historial permiten integrar los envíos. Las APIs de clientes y
-repartidores (#14/#15), los errores de estados (#17) y la consulta del historial
-(#21) continúan en sus issues correspondientes.

@@ -1,57 +1,60 @@
 package com.logitrack.shipment.client;
 
+import com.logitrack.shipment.client.CourierFeignClient.CourierResult;
 import com.logitrack.shipment.exception.CourierNotActiveException;
 import com.logitrack.shipment.exception.RemoteCourierException;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Component
 @RequiredArgsConstructor
-public class HttpCourierLookup implements CourierLookup {
-    private final RestClient courierRestClient;
+public class FeignCourierLookup implements CourierLookup {
+    private final CourierFeignClient courierFeignClient;
 
+    @Override
     public void requireAvailable(UUID id) {
-        var result = fetch("/api/v1/couriers/{id}/availability", id);
+        var result = execute(id, () -> courierFeignClient.getAvailability(id));
         validateIdentity(result, id);
         if (result.available() == null || result.available() != "ACTIVO".equals(result.status())) {
             throw unavailable();
         }
-        if (!result.available()) throw new CourierNotActiveException(id);
+        if (!result.available()) {
+            throw new CourierNotActiveException(id);
+        }
     }
 
+    @Override
     public void requireActive(UUID id) {
-        var result = fetch("/api/v1/internal/couriers/{id}/status", id);
+        var result = execute(id, () -> courierFeignClient.getStatus(id));
         validateIdentity(result, id);
-        if (!"ACTIVO".equals(result.status())) throw new CourierNotActiveException(id);
+        if (!"ACTIVO".equals(result.status())) {
+            throw new CourierNotActiveException(id);
+        }
     }
 
-    private CourierResult fetch(String path, UUID id) {
+    private CourierResult execute(UUID id, Supplier<CourierResult> call) {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!(authentication instanceof JwtAuthenticationToken jwt) || !jwt.isAuthenticated()) {
             throw new AccessDeniedException("Se requiere un Bearer validado para consultar repartidores");
         }
         try {
-            return courierRestClient.get().uri(path, id)
-                    .headers(headers -> headers.setBearerAuth(jwt.getToken().getTokenValue()))
-                    .retrieve().onStatus(status -> !status.is2xxSuccessful(), (request, response) -> {
-                        switch (response.getStatusCode().value()) {
-                            case 404 -> throw new ResourceNotFoundException("Repartidor", id);
-                            case 422 -> throw new CourierNotActiveException(id);
-                            case 401 -> throw new RemoteCourierException(HttpStatus.UNAUTHORIZED, "COURIER_UNAUTHORIZED");
-                            case 403 -> throw new RemoteCourierException(HttpStatus.FORBIDDEN, "COURIER_FORBIDDEN");
-                            default -> throw unavailable();
-                        }
-                    }).body(CourierResult.class);
-        } catch (RestClientException exception) {
-            throw unavailable();
+            return call.get();
+        } catch (FeignException exception) {
+            throw switch (exception.status()) {
+                case 404 -> new ResourceNotFoundException("Repartidor", id);
+                case 422 -> new CourierNotActiveException(id);
+                case 401 -> new RemoteCourierException(HttpStatus.UNAUTHORIZED, "COURIER_UNAUTHORIZED");
+                case 403 -> new RemoteCourierException(HttpStatus.FORBIDDEN, "COURIER_FORBIDDEN");
+                default -> unavailable();
+            };
         }
     }
 
@@ -65,6 +68,4 @@ public class HttpCourierLookup implements CourierLookup {
     private static RemoteCourierException unavailable() {
         return new RemoteCourierException(HttpStatus.SERVICE_UNAVAILABLE, "COURIER_UNAVAILABLE");
     }
-
-    public record CourierResult(UUID courierId, String status, Boolean available) { }
 }
