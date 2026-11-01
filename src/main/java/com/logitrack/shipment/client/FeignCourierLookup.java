@@ -8,12 +8,14 @@ import feign.FeignException;
 import java.util.UUID;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class FeignCourierLookup implements CourierLookup {
@@ -25,6 +27,7 @@ public class FeignCourierLookup implements CourierLookup {
         CourierResult validated = validateIdentity(result, id);
         Boolean available = validated.available();
         if (available == null || available != "ACTIVO".equals(validated.status())) {
+            log.warn("Payload inconsistente de disponibilidad recibido desde courier-service para repartidor {}", id);
             throw unavailable();
         }
         if (!available) {
@@ -52,9 +55,9 @@ public class FeignCourierLookup implements CourierLookup {
                 throw unavailable();
             }
             return response;
-        } catch (ResourceNotFoundException | CourierNotActiveException | RemoteCourierException | AccessDeniedException ex) {
-            throw ex;
         } catch (FeignException exception) {
+            log.warn("Fallo HTTP/transporte ({}) al consultar repartidor {} en courier-service",
+                    exception.status(), id);
             throw switch (exception.status()) {
                 case 404 -> new ResourceNotFoundException("Repartidor", id);
                 case 422 -> new CourierNotActiveException(id);
@@ -62,8 +65,6 @@ public class FeignCourierLookup implements CourierLookup {
                 case 403 -> new RemoteCourierException(HttpStatus.FORBIDDEN, "COURIER_FORBIDDEN");
                 default -> unavailable();
             };
-        } catch (RuntimeException exception) {
-            throw unavailable();
         }
     }
 
@@ -73,6 +74,7 @@ public class FeignCourierLookup implements CourierLookup {
                 || result.status() == null
                 || !id.equals(result.courierId())
                 || !("ACTIVO".equals(result.status()) || "INACTIVO".equals(result.status()))) {
+            log.warn("Respuesta inválida o identidad no coincidente desde courier-service para repartidor {}", id);
             throw unavailable();
         }
         return result;
