@@ -8,16 +8,13 @@ API de gestión de envíos. Java 25, Spring Boot 3.5, Spring Cloud 2025.0 (Confi
 
 1. Instalar JDK 25 y configurar `JAVA_HOME`.
 2. Abrir `pom.xml` en IntelliJ IDEA como proyecto Maven; seleccionar JDK 25.
-3. Configurar `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`
-   según `.env.example`. Spring no carga `.env` automáticamente: definir las
-   variables en la configuración de ejecución del IDE o en el entorno.
-4. Con MySQL, Config Server y Eureka Server (`http://localhost:8065/eureka/`) disponibles: `./mvnw spring-boot:run` (`.\mvnw.cmd` en Windows).
+3. Configurar `DB_URL` (`DB_HOST`, `DB_PORT`, `DB_NAME`), `DB_USERNAME`, `DB_PASSWORD`, `CONFIG_SERVER_URL` (`http://localhost:8888`) y `EUREKA_SERVER_URL` (`http://localhost:8065/eureka/`) según `.env.example`. Spring no carga `.env` automáticamente: definir las variables en la configuración de ejecución del IDE o en el entorno.
+4. Con MySQL (`:3306`), Config Server (`config-server:8888`), Eureka Server (`eureka-server:8065`) y `courier-service` (`courier-service:8082`) disponibles: `./mvnw spring-boot:run` (`.\mvnw.cmd` en Windows). Para ejecución local aislada con H2 y dobles HTTP sin servicios externos, usar `LocalShipmentApplication` (`Sprint2_Demo_H2`).
 
 La aplicación expone `/actuator/health`, `/swagger-ui.html` y `/v3/api-docs`.
-Las solicitudes externas ingresan a través del **API Gateway (`:8080`)**, mientras que el descubrimiento de instancias se realiza mediante **Eureka Server (`:8065`)**.
+Las solicitudes externas ingresan a través del **API Gateway (`api-gateway:8080`)**, mientras que el descubrimiento dinámico de instancias se realiza mediante **Eureka Server (`eureka-server:8065`)**.
 
-El Compose actual levanta solo MySQL 8.4: copiar `.env.example` a `.env`,
-elegir contraseñas locales y ejecutar `docker compose up -d mysql`.
+El archivo `compose.yaml` local de este repositorio levanta `mysql` (MySQL 8.4) y `shipment-service` (`:8081`); para el entorno distribuido completo con `config-server`, `eureka-server`, `security-service`, `courier-service` y `api-gateway`, utilizar el Compose de despliegue integrado o `compose.release.yaml`.
 
 ## Pruebas
 
@@ -88,7 +85,7 @@ Cambiar la configuración requiere reiniciar la aplicación.
 - **Endpoints consumidos**:
   - `GET /api/v1/couriers/{id}/availability` — valida disponibilidad al asignar un repartidor a un envío pendiente.
   - `GET /api/v1/internal/couriers/{id}/status` — valida que el repartidor asignado siga `ACTIVO` al pasar un envío a `EN_RUTA`.
-- **Seguridad y propagación de JWT**: Las peticiones externas ingresan por el **API Gateway (`:8080`)** y el `RequestInterceptor` de `CourierClientConfig` propaga el encabezado `Authorization: Bearer <token>` validado en el `SecurityContextHolder` hacia `courier-service`.
+- **Seguridad y propagación de JWT**: Las peticiones externas ingresan por el **API Gateway (`:8080`)** y el `RequestInterceptor` de `CourierClientConfig` propaga el encabezado `Authorization: Bearer <token>` validado en el `SecurityContextHolder` hacia `courier-service` en el mismo hilo de ejecución (`spring.cloud.circuitbreaker.resilience4j.disable-time-limiter=true`).
 - **Resiliencia y comportamiento cuando `courier-service` falla o no está disponible (Issue #85)**:
   - **`CourierErrorDecoder`**: Traduce respuestas HTTP no exitosas de `courier-service`:
     - `HTTP 404` $\rightarrow$ `ResourceNotFoundException` (`404 RESOURCE_NOT_FOUND`).
@@ -101,6 +98,7 @@ Cambiar la configuración requiere reiniciar la aplicación.
 | --- | --- | --- |
 | `eureka.client.service-url.defaultZone` | `http://localhost:8065/eureka/` | `EUREKA_SERVER_URL` |
 | `spring.cloud.openfeign.circuitbreaker.enabled` | `true` | — |
+| `spring.cloud.circuitbreaker.resilience4j.disable-time-limiter` | `true` | — |
 | `logitrack.courier.service-id` | `courier-service` | — |
 | `logitrack.courier.connect-timeout` | `500ms` | — |
 | `logitrack.courier.read-timeout` | `1s` | — |

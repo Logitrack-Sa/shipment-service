@@ -1,19 +1,11 @@
 package com.logitrack.shipment.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.logitrack.shipment.client.CourierFeignClient.CourierResult;
 import com.logitrack.shipment.exception.*;
 import com.sun.net.httpserver.HttpServer;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-import org.springframework.cloud.client.DefaultServiceInstance;
-import org.springframework.cloud.loadbalancer.core.ServiceInstanceListSupplier;
-import org.springframework.cloud.loadbalancer.support.ServiceInstanceListSuppliers;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import feign.Feign;
+import feign.optionals.OptionalDecoder;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -21,6 +13,22 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.beans.factory.ObjectFactory;
+import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
+import org.springframework.cloud.client.DefaultServiceInstance;
+import org.springframework.cloud.loadbalancer.core.ServiceInstanceListSupplier;
+import org.springframework.cloud.loadbalancer.support.ServiceInstanceListSuppliers;
+import org.springframework.cloud.openfeign.support.ResponseEntityDecoder;
+import org.springframework.cloud.openfeign.support.SpringDecoder;
+import org.springframework.cloud.openfeign.support.SpringMvcContract;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import static org.assertj.core.api.Assertions.*;
 
 class HttpCourierLookupTest {
@@ -63,9 +71,20 @@ class HttpCourierLookupTest {
     FeignCourierLookup clientAt(int port) {
         var props = new CourierProperties(URI.create("http://127.0.0.1:" + port),
                 Duration.ofMillis(200), Duration.ofMillis(300));
-        return new FeignCourierLookup(
-                new CourierClientConfig().createClient(props),
-                new CourierFeignFallbackFactory());
+        return new FeignCourierLookup(createFeignClient(props), new CourierFeignFallbackFactory());
+    }
+
+    static CourierFeignClient createFeignClient(CourierProperties properties) {
+        var config = new CourierClientConfig();
+        ObjectFactory<HttpMessageConverters> converters = HttpMessageConverters::new;
+        return Feign.builder()
+                .contract(new SpringMvcContract())
+                .decoder(new OptionalDecoder(new ResponseEntityDecoder(new SpringDecoder(converters))))
+                .errorDecoder(config.courierErrorDecoder())
+                .options(config.courierRequestOptions(properties))
+                .retryer(config.courierRetryer())
+                .requestInterceptor(config.courierBearerRequestInterceptor())
+                .target(CourierFeignClient.class, properties.baseUrl().toString());
     }
 
     @AfterEach void cleanup() {
@@ -99,10 +118,19 @@ class HttpCourierLookupTest {
         var instance = supplier.get().blockFirst().getFirst();
         var discoveredProps = new CourierProperties(instance.getUri(), props.connectTimeout(), props.readTimeout(), props.serviceId());
         var discoveredClient = new FeignCourierLookup(
-                new CourierClientConfig().createClient(discoveredProps),
+                createFeignClient(discoveredProps),
                 new CourierFeignFallbackFactory());
         discoveredClient.requireAvailable(ID);
         assertThat(receivedPath).isEqualTo("/api/v1/couriers/" + ID + "/availability");
+    }
+
+    @Test void rejectsNullOrIncompleteDecodedPayloadWithoutNullPointerException() {
+        var nullClient = new FeignCourierLookup(new CourierFeignClient() {
+            @Override public CourierResult getAvailability(UUID id) { return null; }
+            @Override public CourierResult getStatus(UUID id) { return new CourierResult(null, null, null); }
+        }, new CourierFeignFallbackFactory());
+        assertUnavailable(() -> nullClient.requireAvailable(ID));
+        assertUnavailable(() -> nullClient.requireActive(ID));
     }
 
     @Test void fallbackFactoryTranslatesTransportErrorsAndPreservesDomainExceptions() {

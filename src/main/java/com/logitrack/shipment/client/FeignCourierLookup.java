@@ -3,7 +3,7 @@ package com.logitrack.shipment.client;
 import com.logitrack.shipment.client.CourierFeignClient.CourierResult;
 import com.logitrack.shipment.exception.CourierNotActiveException;
 import com.logitrack.shipment.exception.RemoteCourierException;
-import feign.FeignException;
+import com.logitrack.shipment.exception.ResourceNotFoundException;
 import java.util.UUID;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
@@ -32,22 +32,23 @@ public class FeignCourierLookup implements CourierLookup {
 
     @Override
     public void requireAvailable(UUID id) {
-        var result = execute(id, client -> client.getAvailability(id));
-        validateIdentity(result, id);
-        if (result.available() == null || result.available() != "ACTIVO".equals(result.status())) {
+        CourierResult result = execute(id, client -> client.getAvailability(id));
+        CourierResult validated = validateIdentity(result, id);
+        Boolean available = validated.available();
+        if (available == null || available != "ACTIVO".equals(validated.status())) {
             log.warn("Payload inconsistente de disponibilidad recibido desde courier-service para repartidor {}", id);
             throw unavailable();
         }
-        if (!result.available()) {
+        if (!available) {
             throw new CourierNotActiveException(id);
         }
     }
 
     @Override
     public void requireActive(UUID id) {
-        var result = execute(id, client -> client.getStatus(id));
-        validateIdentity(result, id);
-        if (!"ACTIVO".equals(result.status())) {
+        CourierResult result = execute(id, client -> client.getStatus(id));
+        CourierResult validated = validateIdentity(result, id);
+        if (!"ACTIVO".equals(validated.status())) {
             throw new CourierNotActiveException(id);
         }
     }
@@ -58,18 +59,28 @@ public class FeignCourierLookup implements CourierLookup {
             throw new AccessDeniedException("Se requiere un Bearer validado para consultar repartidores");
         }
         try {
-            return call.apply(courierFeignClient);
-        } catch (FeignException exception) {
+            CourierResult response = call.apply(courierFeignClient);
+            if (response == null) {
+                throw unavailable();
+            }
+            return response;
+        } catch (ResourceNotFoundException | CourierNotActiveException | RemoteCourierException | AccessDeniedException ex) {
+            throw ex;
+        } catch (RuntimeException exception) {
             return call.apply(fallbackFactory.create(exception));
         }
     }
 
-    private void validateIdentity(CourierResult result, UUID id) {
-        if (result == null || !id.equals(result.courierId())
+    private CourierResult validateIdentity(CourierResult result, UUID id) {
+        if (result == null
+                || result.courierId() == null
+                || result.status() == null
+                || !id.equals(result.courierId())
                 || !("ACTIVO".equals(result.status()) || "INACTIVO".equals(result.status()))) {
             log.warn("Respuesta inválida o identidad no coincidente desde courier-service para repartidor {}", id);
             throw unavailable();
         }
+        return result;
     }
 
     private static RemoteCourierException unavailable() {

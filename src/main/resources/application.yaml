@@ -7,6 +7,9 @@ spring:
     openfeign:
       circuitbreaker:
         enabled: true
+    circuitbreaker:
+      resilience4j:
+        disable-time-limiter: true
   jpa:
     open-in-view: false
     hibernate:
