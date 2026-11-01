@@ -7,7 +7,8 @@ import java.util.UUID;
 
 @FeignClient(
         name = "${logitrack.courier.service-id:courier-service}",
-        url = "${logitrack.courier.base-url:}"
+        url = "${logitrack.courier.base-url:}",
+        fallbackFactory = CourierFeignFallbackFactory.class
 )
 public interface CourierFeignClient {
 

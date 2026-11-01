@@ -4,6 +4,7 @@ import feign.Feign;
 import feign.Request;
 import feign.RequestInterceptor;
 import feign.Retryer;
+import feign.codec.ErrorDecoder;
 import feign.optionals.OptionalDecoder;
 import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
@@ -40,6 +41,11 @@ public class CourierClientConfig {
     }
 
     @Bean
+    public ErrorDecoder courierErrorDecoder() {
+        return new CourierErrorDecoder();
+    }
+
+    @Bean
     public RequestInterceptor courierBearerRequestInterceptor() {
         return template -> {
             var authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -55,6 +61,7 @@ public class CourierClientConfig {
         return Feign.builder()
                 .contract(new SpringMvcContract())
                 .decoder(new OptionalDecoder(new ResponseEntityDecoder(new SpringDecoder(converters))))
+                .errorDecoder(courierErrorDecoder())
                 .options(courierRequestOptions(properties))
                 .retryer(courierRetryer())
                 .requestInterceptor(courierBearerRequestInterceptor())

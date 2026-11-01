@@ -3,6 +3,10 @@ spring:
     name: shipment-service
   profiles:
     default: dev
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
   jpa:
     open-in-view: false
     hibernate:

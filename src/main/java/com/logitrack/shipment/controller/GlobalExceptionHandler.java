@@ -122,6 +122,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RemoteCourierException.class)
     public ResponseEntity<ErrorResponse> handleRemoteCourier(
             RemoteCourierException exception, HttpServletRequest request) {
+        log.warn("Error de integración con courier-service [{} -> {}] en {} {}: {}",
+                exception.code(), exception.status().value(), request.getMethod(),
+                request.getRequestURI(), exception.getMessage());
         return error(exception.status(), exception.code(), exception.getMessage(), request, List.of());
     }
 

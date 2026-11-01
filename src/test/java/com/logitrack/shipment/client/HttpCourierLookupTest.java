@@ -7,7 +7,6 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.cloud.client.DefaultServiceInstance;
-import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.cloud.loadbalancer.core.ServiceInstanceListSupplier;
 import org.springframework.cloud.loadbalancer.support.ServiceInstanceListSuppliers;
 import org.springframework.http.HttpStatus;
@@ -64,7 +63,9 @@ class HttpCourierLookupTest {
     FeignCourierLookup clientAt(int port) {
         var props = new CourierProperties(URI.create("http://127.0.0.1:" + port),
                 Duration.ofMillis(200), Duration.ofMillis(300));
-        return new FeignCourierLookup(new CourierClientConfig().createClient(props));
+        return new FeignCourierLookup(
+                new CourierClientConfig().createClient(props),
+                new CourierFeignFallbackFactory());
     }
 
     @AfterEach void cleanup() {
@@ -97,9 +98,31 @@ class HttpCourierLookupTest {
                 new DefaultServiceInstance("courier-1", "courier-service", "127.0.0.1", server.getAddress().getPort(), false));
         var instance = supplier.get().blockFirst().getFirst();
         var discoveredProps = new CourierProperties(instance.getUri(), props.connectTimeout(), props.readTimeout(), props.serviceId());
-        var discoveredClient = new FeignCourierLookup(new CourierClientConfig().createClient(discoveredProps));
+        var discoveredClient = new FeignCourierLookup(
+                new CourierClientConfig().createClient(discoveredProps),
+                new CourierFeignFallbackFactory());
         discoveredClient.requireAvailable(ID);
         assertThat(receivedPath).isEqualTo("/api/v1/couriers/" + ID + "/availability");
+    }
+
+    @Test void fallbackFactoryTranslatesTransportErrorsAndPreservesDomainExceptions() {
+        var fallbackFactory = new CourierFeignFallbackFactory();
+
+        var transportFallback = fallbackFactory.create(new ConnectException("Connection refused"));
+        assertThatThrownBy(() -> transportFallback.getAvailability(ID))
+                .isInstanceOfSatisfying(RemoteCourierException.class, ex -> {
+                    assertThat(ex.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(ex.code()).isEqualTo("COURIER_UNAVAILABLE");
+                });
+        assertThatThrownBy(() -> transportFallback.getStatus(ID))
+                .isInstanceOfSatisfying(RemoteCourierException.class, ex -> {
+                    assertThat(ex.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(ex.code()).isEqualTo("COURIER_UNAVAILABLE");
+                });
+
+        var notFoundFallback = fallbackFactory.create(new ResourceNotFoundException("Repartidor", ID));
+        assertThatThrownBy(() -> notFoundFallback.getAvailability(ID))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test void rejectsInactiveWithoutRetry() throws Exception {
