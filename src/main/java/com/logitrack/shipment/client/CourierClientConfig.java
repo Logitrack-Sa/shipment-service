@@ -41,6 +41,9 @@ public class CourierClientConfig {
     @Bean
     public RequestInterceptor courierBearerRequestInterceptor() {
         return template -> {
+            if (template.headers().containsKey(HttpHeaders.AUTHORIZATION)) {
+                return;
+            }
             var authentication = SecurityContextHolder.getContext().getAuthentication();
             if (!(authentication instanceof JwtAuthenticationToken jwt) || !jwt.isAuthenticated()) {
                 throw new AccessDeniedException("Se requiere un Bearer validado para consultar repartidores");

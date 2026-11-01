@@ -18,12 +18,12 @@ public class CourierFeignFallbackFactory implements FallbackFactory<CourierFeign
     public CourierFeignClient create(Throwable cause) {
         return new CourierFeignClient() {
             @Override
-            public CourierResult getAvailability(UUID id) {
+            public CourierResult getAvailability(UUID id, String authorization) {
                 throw handleFailure("getAvailability", id, cause);
             }
 
             @Override
-            public CourierResult getStatus(UUID id) {
+            public CourierResult getStatus(UUID id, String authorization) {
                 throw handleFailure("getStatus", id, cause);
             }
         };
@@ -38,7 +38,7 @@ public class CourierFeignFallbackFactory implements FallbackFactory<CourierFeign
         log.warn("Fallo de comunicación con courier-service en {} para repartidor {} (causa: {})",
                 operation, courierId, reason);
         return new RemoteCourierException(HttpStatus.SERVICE_UNAVAILABLE, "COURIER_UNAVAILABLE",
-                "No se pudo validar el repartidor en el servicio remoto");
+                "No se pudo validar el repartidor en el servicio remoto", cause);
     }
 
     private static RuntimeException unwrapKnownException(Throwable throwable) {

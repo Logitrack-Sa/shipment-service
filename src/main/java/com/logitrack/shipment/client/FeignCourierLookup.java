@@ -3,9 +3,9 @@ package com.logitrack.shipment.client;
 import com.logitrack.shipment.client.CourierFeignClient.CourierResult;
 import com.logitrack.shipment.exception.CourierNotActiveException;
 import com.logitrack.shipment.exception.RemoteCourierException;
-import com.logitrack.shipment.exception.ResourceNotFoundException;
+import feign.FeignException;
 import java.util.UUID;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -32,7 +32,7 @@ public class FeignCourierLookup implements CourierLookup {
 
     @Override
     public void requireAvailable(UUID id) {
-        CourierResult result = execute(id, client -> client.getAvailability(id));
+        CourierResult result = execute((client, bearer) -> client.getAvailability(id, bearer));
         CourierResult validated = validateIdentity(result, id);
         Boolean available = validated.available();
         if (available == null || available != "ACTIVO".equals(validated.status())) {
@@ -46,28 +46,27 @@ public class FeignCourierLookup implements CourierLookup {
 
     @Override
     public void requireActive(UUID id) {
-        CourierResult result = execute(id, client -> client.getStatus(id));
+        CourierResult result = execute((client, bearer) -> client.getStatus(id, bearer));
         CourierResult validated = validateIdentity(result, id);
         if (!"ACTIVO".equals(validated.status())) {
             throw new CourierNotActiveException(id);
         }
     }
 
-    private CourierResult execute(UUID id, Function<CourierFeignClient, CourierResult> call) {
+    private CourierResult execute(BiFunction<CourierFeignClient, String, CourierResult> call) {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!(authentication instanceof JwtAuthenticationToken jwt) || !jwt.isAuthenticated()) {
             throw new AccessDeniedException("Se requiere un Bearer validado para consultar repartidores");
         }
+        String bearer = "Bearer " + jwt.getToken().getTokenValue();
         try {
-            CourierResult response = call.apply(courierFeignClient);
+            CourierResult response = call.apply(courierFeignClient, bearer);
             if (response == null) {
                 throw unavailable();
             }
             return response;
-        } catch (ResourceNotFoundException | CourierNotActiveException | RemoteCourierException | AccessDeniedException ex) {
-            throw ex;
-        } catch (RuntimeException exception) {
-            return call.apply(fallbackFactory.create(exception));
+        } catch (FeignException exception) {
+            return call.apply(fallbackFactory.create(exception), bearer);
         }
     }
 
