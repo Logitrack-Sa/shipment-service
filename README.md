@@ -182,3 +182,12 @@ El tracking usa SecureRandom (`LT-` y diez caracteres alfanuméricos mayúsculos
 preconsulta de existencia e índice único en BD. Cada intento de alta es una
 transacción independiente; se reintenta únicamente una colisión de tracking y
 se aborta después de cinco intentos. Envío e historial se confirman juntos.
+
+## Descubrimiento centralizado (#78)
+
+El perfil `prod,sprint3` de config-repo activa Eureka y deja vacia
+`logitrack.courier.base-url`; Feign resuelve `courier-service` por nombre.
+En Compose se anuncian `SERVICE_HOST=shipment-service` y el registro interno
+`EUREKA_SERVER_URL=http://eureka-server:8065/eureka/`.
+Los perfiles anteriores conservan la opcion `EUREKA_CLIENT_ENABLED=false`.
+Esta rama parte del trabajo Feign de #84-#86; no reimplementa esos cambios.

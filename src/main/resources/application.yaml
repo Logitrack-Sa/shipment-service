@@ -21,7 +21,7 @@ spring:
     validate-on-migrate: true
 eureka:
   client:
-    enabled: ${EUREKA_CLIENT_ENABLED:true}
+    enabled: ${EUREKA_CLIENT_ENABLED:false}
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://localhost:8065/eureka/}
   instance:
