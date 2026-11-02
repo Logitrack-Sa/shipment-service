@@ -18,7 +18,7 @@ Desde shipment-service:
 
 ```powershell
 python integration/build_sprint3.py --workspace .. --temporary D:/DockerData/build-sprint3
-python integration/prepare_sprint3.py --config-label 66342caaa6532ede5132403a4e95f90b69280d30
+python integration/prepare_sprint3.py --config-label e996cd5f3374f38d0a1e3e19de152e8f5cedc29d
 docker compose --env-file target/sprint3/runtime.env -f deploy/docker-compose.yml -p logitrack-sprint3 up -d --no-build --wait --wait-timeout 900
 ```
 
@@ -46,6 +46,8 @@ aplicaciones desde IntelliJ en paralelo con esta demostracion.
 
 Orden de disponibilidad: Config Server, Eureka, servicios con sus propias
 bases y finalmente Gateway. Los healthchecks comprueban HTTP y SQL reales;
+Config Server debe servir configuracion Git de Eureka antes de declararse listo,
+evitando que los clientes compitan con la primera clonacion en un HDD frio;
 la verificacion del catalogo espera ademas los cuatro clientes UP en Eureka.
 
 ## Verificar

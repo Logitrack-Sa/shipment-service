@@ -49,6 +49,7 @@ class Sprint3ComposeTest(unittest.TestCase):
 
     def test_startup_and_discovery_do_not_use_a_fixed_courier_url(self):
         services = self.config['services']
+        self.assertIn('/eureka-server/default', services['config-server']['healthcheck']['test'][-1])
         self.assertEqual('service_healthy', services['eureka-server']['depends_on']['config-server']['condition'])
         for name in ('shipment-service', 'courier-service', 'security-service', 'api-gateway'):
             config = services[name]

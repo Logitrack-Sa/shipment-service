@@ -51,6 +51,12 @@ services:
   config-server:
     <<: *app
     image: ${CONFIG_SERVER_IMAGE:-alexxe576/logitrack-config-server:sprint2-20261026.1@sha256:1e7c69b2bbfd76fe53a430daecf1943b28680cd16b63ab498f1da20024deecba}
+    healthcheck:
+      test: [CMD, bash, -ec, "exec 3<>/dev/tcp/127.0.0.1/8888; printf 'GET /eureka-server/default HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3; read -r status <&3; [[ $$status == *' 200 '* ]]"]
+      interval: 10s
+      timeout: 5s
+      start_period: 90s
+      retries: 30
     ports: ['127.0.0.1:8888:8888']
     environment:
       SERVER_ADDRESS: 0.0.0.0

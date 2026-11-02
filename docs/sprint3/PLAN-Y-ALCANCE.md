@@ -33,8 +33,10 @@ autores. Las correcciones detectadas por CI pueden requerir commits adicionales:
 el checkout de courier contenia un gitlink sin .gitmodules y el Javadoc del
 Gateway tenia encabezados de nivel incorrecto. La prueba distribuida tambien
 detecto la falta de la configuracion base de Gateway para su bootstrap
-obligatorio; se corrige con un commit independiente en config-repo. El resultado
-son 13 commits, incluyendo la inicializacion del repositorio Eureka.
+obligatorio; se corrige con un commit independiente en config-repo. La revision
+IA identifico ademas defaults localhost en descubrimiento; se exigen las
+variables ya declaradas en Compose y se actualiza la revision documentada.
+El resultado son 15 commits, incluyendo la inicializacion del repositorio Eureka.
 
 ## Decisiones
 
@@ -49,7 +51,8 @@ son 13 commits, incluyendo la inicializacion del repositorio Eureka.
   de negocio publicado. Config Server y Eureka exponen administracion solo en
   loopback para la demostracion local.
 - `logitrack.courier.base-url` queda vacia en sprint3 para resolver por Eureka;
-  el DNS publicado por cada cliente usa `SERVICE_HOST`.
+  el DNS publicado por cada cliente usa `SERVICE_HOST`. Este perfil exige
+  `SERVICE_HOST` y `EUREKA_SERVER_URL`, sin fallback silencioso a localhost.
 - No se publican credenciales, PEM privados, tokens ni runtime.env.
 - Las imagenes `sprint3-local` son compilaciones locales; no se presentan como
   imagenes publicadas en Docker Hub ni sobrescriben el tag del Sprint 2.

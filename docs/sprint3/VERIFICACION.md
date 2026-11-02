@@ -4,7 +4,7 @@
 
 Los nueve contenedores iniciaron con `deploy/docker-compose.yml` y quedaron
 saludables. Config Server obtuvo la revision
-`66342caaa6532ede5132403a4e95f90b69280d30` del repositorio Git de configuracion.
+`e996cd5f3374f38d0a1e3e19de152e8f5cedc29d` del repositorio Git de configuracion.
 Eureka registro API-GATEWAY, SECURITY-SERVICE, COURIER-SERVICE y SHIPMENT-SERVICE
 en estado UP, anunciando sus nombres DNS internos y puertos correctos.
 
@@ -33,6 +33,15 @@ flowchart LR
 Las bases usan volumenes y redes separados; las APIs de dominio no publican
 puertos en el host. Solo security recibe la clave privada. Config y Eureka
 publican sus puertos administrativos en loopback.
+
+El healthcheck de Config Server consulta `/eureka-server/default`, ademas de
+comprobar respuesta HTTP: su primera clonacion Git debe estar disponible antes
+de iniciar los clientes. Un simple Actuator UP no garantizaba esa disponibilidad
+en el HDD y podia provocar un timeout durante el bootstrap obligatorio.
+
+El perfil sprint3 requiere SERVICE_HOST y EUREKA_SERVER_URL. Se retiraron los
+defaults localhost detectados por el revisor IA para evitar direcciones de
+descubrimiento incorrectas al omitir variables de despliegue.
 
 ## Prueba distribuida ejecutada
 
