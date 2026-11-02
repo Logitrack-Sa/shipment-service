@@ -3,6 +3,13 @@ spring:
     name: shipment-service
   profiles:
     default: dev
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+    circuitbreaker:
+      resilience4j:
+        disable-time-limiter: true
   jpa:
     open-in-view: false
     hibernate:
@@ -12,6 +19,13 @@ spring:
   flyway:
     enabled: true
     validate-on-migrate: true
+eureka:
+  client:
+    enabled: ${EUREKA_CLIENT_ENABLED:false}
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8065/eureka/}
+  instance:
+    prefer-ip-address: true
 management:
   endpoints.web.exposure.include: health,info
   endpoint.health.show-details: never

@@ -2,58 +2,192 @@
 
 [![CI](https://github.com/Logitrack-Sa/shipment-service/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Logitrack-Sa/shipment-service/actions/workflows/ci.yml)
 
-API de envíos con Java 25, Spring Boot 3.5.16, Spring Cloud 2025.0.3, JPA, MySQL y Flyway. Conserva tarifa, tracking, estados, cancelación y auditoría del Sprint 1. Courier es un UUID externo, consultado por REST; sus datos se administran en courier-service.
+API de gestión de envíos. Java 25, Spring Boot 3.5, Spring Cloud 2025.0 (Config, Eureka Client, OpenFeign, Resilience4j) y Maven Wrapper.
 
-[Estado actualizado por issue y dependencias del equipo](docs/sprint2/ESTADO-ENTREGA.md).
+## Desarrollo
 
-## Probar en IntelliJ
+1. Instalar JDK 25 y configurar `JAVA_HOME`.
+2. Abrir `pom.xml` en IntelliJ IDEA como proyecto Maven; seleccionar JDK 25.
+3. Configurar `DB_URL` (`DB_HOST`, `DB_PORT`, `DB_NAME`), `DB_USERNAME`, `DB_PASSWORD`, `CONFIG_SERVER_URL` (`http://localhost:8888`) y `EUREKA_SERVER_URL` (`http://localhost:8065/eureka/`) según `.env.example`. Spring no carga `.env` automáticamente: definir las variables en la configuración de ejecución del IDE o en el entorno.
+4. Con MySQL (`:3306`), Config Server (`config-server:8888`), Eureka Server (`eureka-server:8065`) y `courier-service` (`courier-service:8082`) disponibles: `./mvnw spring-boot:run` (`.\mvnw.cmd` en Windows). Para ejecución local aislada con H2 y dobles HTTP sin servicios externos, usar `LocalShipmentApplication` (`Sprint2_Demo_H2`).
 
-[Configuraciones listas: Sprint2_Pruebas_Local y Sprint2_Demo_H2](docs/sprint2/INTELLIJ.md). La demo usa H2 volátil, claves efímeras y dobles HTTP; no toca datos existentes ni representa cuatro servicios reales.
+La aplicación expone `/actuator/health`, `/swagger-ui.html` y `/v3/api-docs`.
+Las solicitudes externas ingresan a través del **API Gateway (`api-gateway:8080`)**, mientras que el descubrimiento dinámico de instancias se realiza mediante **Eureka Server (`eureka-server:8065`)**.
 
-## Ejecutar
-
-Abrir pom.xml en IntelliJ con JDK25. Los perfiles dev/prod requieren Config Server, MySQL propio y la clave pública RSA del emisor JWT. Configurar las variables indicadas en [arranque y configuración](docs/sprint2/CONFIGURACION-SHIPMENT.md); ejecutar ShipmentServiceApplication o `./mvnw spring-boot:run` (`.\mvnw.cmd` en Windows). El puerto llega del servidor de configuración; la plantilla propone 8081.
-
-El Dockerfile es multietapa Java25, con bases fijadas por digest, contexto limitado a pom/src-main y usuario10001. Puerto, perfil, Config Server, MySQL y clave pública llegan por entorno/montajes. La [entrega Docker `sprint2-20261026.1`](https://github.com/Logitrack-Sa/shipment-service/releases/tag/sprint2-20261026.1) contiene cuatro imágenes públicas y el Compose distribuido, verificados desde un checkout limpio. `.github/compose.smoke.yaml` conserva su alcance de CI con dobles HTTP.
-
-## Seguridad y API
-
-JWT RS256 validado localmente: firma, issuer, audience, expiración, iat, kid y roles. Sin llamadas al emisor por solicitud. ADMIN administra; CLIENTE crea/consulta sus envíos; REPARTIDOR consulta y cambia estados de los asignados. Cancelación y asignación son administrativas. Listados filtran por pertenencia antes de paginar. [Matriz de permisos y contratos](docs/sprint2/CONTRATOS-V1.md).
-
-Documentación pública, sin datos de negocio:
-- `/docs/`: portal con campo JWT por solicitud, sin persistencia del token.
-- `/docs/explorer.html`: Swagger con Authorize → Bearer.
-- `/v3/api-docs`: OpenAPI; `/actuator/health`: estado mínimo.
-
-| Método | Ruta | Operación |
-|---|---|---|
-| POST | /api/v1/customers | Registrar cliente (ADMIN) |
-| GET | /api/v1/customers y /{id} | Consultar clientes (ADMIN) |
-| POST | /api/v1/shipments | Registrar envío |
-| GET | /api/v1/shipments | Página propia; filtro status opcional |
-| GET | /api/v1/shipments/{id} | Detalle autorizado |
-| GET | /api/v1/shipments/tracking/{trackingCode} | Seguimiento autorizado |
-| GET | /api/v1/shipments/{id}/history | Historial autorizado |
-| PUT | /api/v1/shipments/{id}/courier | Asignar UUID de courier disponible |
-| PATCH | /api/v1/shipments/{id}/status | Transición válida |
-| POST | /api/v1/shipments/{id}/cancellation | Cancelar PENDIENTE |
-
-Tarifa = base + max(pesoKg, ancho×alto×largo/divisor) × precioPorKg. BigDecimal y redondeo final HALF_UP a dos decimales. Parámetros externos; ejemplo base1000, precio250, divisor5000: 2,5kg y 30×20×40cm →2200. Tracking `LT-` +10 caracteres seguros; restricción única y reintentos únicamente por colisión. Envío e historial se confirman juntos.
+El archivo `compose.yaml` local de este repositorio levanta `mysql` (MySQL 8.4) y `shipment-service` (`:8081`); para el entorno distribuido completo con `config-server`, `eureka-server`, `security-service`, `courier-service` y `api-gateway`, utilizar el Compose de despliegue integrado o `compose.release.yaml`.
 
 ## Pruebas
 
-`./mvnw verify` ejecuta tests unitarios, integración, JWT real, HTTP simulado y migraciones contra MySQL/Testcontainers; requiere Docker. JaCoCo: target/site/jacoco/index.html. [Comandos y límites sin Docker](docs/sprint2/CONFIGURACION-SHIPMENT.md).
+```shell
+./mvnw verify
+```
 
-CI prueba H2, repite con MySQL, verifica V1→V2 con datos anteriores y arranca shipment/MySQL en contenedores. El smoke usa dobles HTTP de Config/Courier y claves RSA efímeras; la [integración separada con los cuatro servicios reales](https://github.com/Logitrack-Sa/shipment-service/actions/runs/40436111809) también pasó desde las imágenes publicadas.
+Las pruebas unitarias no requieren red ni base de datos. El perfil `test` usa H2
+solo para contexto y persistencia; no reemplaza MySQL/Testcontainers de #30.
+JaCoCo genera `target/site/jacoco/index.html`.
 
-## Arquitectura y entrega
+La CI ejecuta la suite con Temurin 25 y vuelve a probar alta, historial,
+colisiones y rollback contra un MySQL 8.4 efímero. También verifica health,
+Swagger y OpenAPI por HTTP. Ese smoke test crea el esquema únicamente en su
+base aislada; la validación de migraciones productivas sigue en #27/#30.
 
-[Diagrama de cuatro aplicaciones, tres MySQL y Git config](docs/sprint2/ARQUITECTURA.md). [Arranque de la entrega publicada](docs/sprint2/ENTREGA-DOCKER.md): preparar el entorno descartable, ejecutar `docker compose --env-file target/release/runtime.env -f compose.release.yaml -p logitrack-e2e-local pull` y luego `up -d --no-build --wait`. [Imágenes, digests y reporte](https://github.com/Logitrack-Sa/shipment-service/releases/tag/sprint2-20261026.1). Los PR de componentes no esperan a otros servicios.
+La suite de comunicación Feign, descubrimiento dinámico y resiliencia (ver detalle en [docs/sprint3/TESTING-FEIGN.md](docs/sprint3/TESTING-FEIGN.md)) puede ejecutarse sin BD externa ni contenedores adicionales:
+```shell
+./mvnw test -Dtest=FeignCourierCommunicationIntegrationTest,HttpCourierLookupTest,AssignCourierTest,ShipmentServiceTest,FeeCalculatorTest,GlobalExceptionHandlerTest
+```
 
-[Histórico del Sprint 1](docs/sprint1/README.md) preservado. [Migración de UUID y auditoría](docs/sprint2/MIGRACION-COURIER.md) sin borrar couriers hasta verificar traslado. Cuentas de prueba A/B vinculadas por ADMIN; ninguna contraseña se incluye en Git.
+## Convenciones
 
-## Trabajo del Sprint 2
+- Paquete raíz: `com.logitrack.shipment`. Capas: `controller`, `service`,
+  `repository`, `entity`, `dto`, `mapper`, `exception`, `client` y `config`.
+- Clases y paquetes en inglés; estados del negocio en español.
+- Endpoints bajo `/api/v1`, con sustantivos plurales.
+- DTOs inmutables, validación de entrada y mappers manuales breves. La API no
+  expone entidades JPA ni `Page` de Spring.
+- Inyección por constructor; transacciones en servicios; lecturas con
+  `readOnly = true`; dinero con `BigDecimal`.
+- Ramas `feat/s3-<issue>-descripcion`, `feature/<issue>-descripcion`, `chore/...`, `test/...` o `docs/...`.
+- Commits Conventional Commits breves, con descripción en español.
+- Cambios mediante PR con `Closes #N` y aprobación de otro integrante.
+  Nadie publica directamente en `main`.
 
-[Tablero](https://github.com/orgs/Logitrack-Sa/projects/2), [reparto](docs/sprint2/BACKLOG.md), [alcance PDF](docs/sprint2/ALCANCE.md), [workflow](docs/sprint2/WORKFLOW.md), [migración courier sin pérdida](docs/sprint2/MIGRACION-COURIER.md). No modificar migraciones aplicadas ni compartir tablas/entidades con otros servicios.
+## Modelo y decisiones
 
-Inyección por constructor, DTOs inmutables, validación, transacciones en servicios y errores sin detalles internos. Ramas por tarea, commits breves en español, PR vinculado y revisión de otro integrante antes de main. La IA comenta hallazgos; no reemplaza CI ni aprobación humana.
+Las entidades usan UUID y auditoría compartida. `courierId` es opcional hasta la
+asignación; los cambios de estado requieren historial persistido. Peso y medidas
+usan `BigDecimal` para evitar errores binarios en el cálculo de tarifa.
+
+## Tarifa propuesta
+
+`pesoVolumetricoKg = largoCm * anchoCm * altoCm / divisor`
+
+`tarifa = base + max(pesoRealKg, pesoVolumetricoKg) * precioPorKg`
+
+La fórmula es una propuesta del equipo pendiente de confirmación del docente.
+Importes en pesos; peso en kg; medidas en cm. Se usa BigDecimal y se redondea
+solo el resultado final a dos decimales con HALF_UP.
+
+| Propiedad | Default | Variable de entorno |
+| --- | --- | --- |
+| `logitrack.fee.base` | `1000.00` | `FEE_BASE` |
+| `logitrack.fee.price-per-kg` | `250.00` | `FEE_PRICE_PER_KG` |
+| `logitrack.fee.volumetric-divisor` | `5000` | `FEE_VOLUMETRIC_DIVISOR` |
+
+Ejemplo: 2,5 kg y 30 × 20 × 40 cm tienen peso facturable de 4,8 kg y tarifa
+de 2200,00. Base y precio no negativos; divisor, peso y medidas positivos.
+Cambiar la configuración requiere reiniciar la aplicación.
+
+## Comunicación con `courier-service` y Resiliencia (OpenFeign + Eureka · Issues #84, #85 y #86)
+
+`shipment-service` valida la disponibilidad y el estado de los repartidores comunicándose con `courier-service` mediante un cliente declarativo de **Spring Cloud OpenFeign** (`CourierFeignClient`), resolución dinámica de instancias a través de **Eureka Server (`:8065`)** y manejo resiliente de errores (`CourierErrorDecoder` + `CourierFeignFallbackFactory`):
+
+- **Descubrimiento dinámico**: `@FeignClient(name = "${logitrack.courier.service-id:courier-service}", url = "${logitrack.courier.base-url:}", fallbackFactory = CourierFeignFallbackFactory.class)` localiza las instancias de `courier-service` registradas en Eureka sin requerir direcciones IP ni puertos fijos.
+- **Endpoints consumidos**:
+  - `GET /api/v1/couriers/{id}/availability` — valida disponibilidad al asignar un repartidor a un envío pendiente.
+  - `GET /api/v1/internal/couriers/{id}/status` — valida que el repartidor asignado siga `ACTIVO` al pasar un envío a `EN_RUTA`.
+- **Seguridad y propagación de JWT**: Las peticiones externas ingresan por el **API Gateway (`:8080`)** y `FeignCourierLookup` junto con `CourierClientConfig` propagan el encabezado `Authorization: Bearer <token>` validado en el `SecurityContextHolder` hacia `courier-service`.
+- **Resiliencia y comportamiento cuando `courier-service` falla o no está disponible (Issue #85)**:
+  - **`CourierErrorDecoder`**: Traduce respuestas HTTP no exitosas de `courier-service`:
+    - `HTTP 404` $\rightarrow$ `ResourceNotFoundException` (`404 RESOURCE_NOT_FOUND`).
+    - `HTTP 422` $\rightarrow$ `CourierNotActiveException` (`422 COURIER_NOT_ACTIVE`).
+    - `HTTP 401` / `403` $\rightarrow$ `RemoteCourierException` (`401 COURIER_UNAUTHORIZED` / `403 COURIER_FORBIDDEN`).
+    - `HTTP 500` / `503` / otros $\rightarrow$ `RemoteCourierException` (`503 COURIER_UNAVAILABLE`).
+  - **`CourierFeignFallbackFactory` + Circuit Breaker**: Ante errores de transporte (`ConnectException`, timeouts, caída de `courier-service` o falta de instancias en Eureka), activa el fallback registrando el incidente con nivel `WARN` (sin exponer tokens ni datos sensibles) y lanza `RemoteCourierException` (`503 COURIER_UNAVAILABLE`), abortando cualquier asignación o transición de estado que no haya podido validarse.
+
+| Propiedad | Default | Variable de entorno |
+| --- | --- | --- |
+| `eureka.client.service-url.defaultZone` | `http://localhost:8065/eureka/` | `EUREKA_SERVER_URL` |
+| `spring.cloud.openfeign.circuitbreaker.enabled` | `true` | — |
+| `spring.cloud.circuitbreaker.resilience4j.disable-time-limiter` | `true` | — |
+| `logitrack.courier.service-id` | `courier-service` | — |
+| `logitrack.courier.connect-timeout` | `500ms` | — |
+| `logitrack.courier.read-timeout` | `1s` | — |
+| `logitrack.courier.base-url` | *(opcional, vacío con Eureka)* | `COURIER_SERVICE_URL` |
+
+## Manejo global de excepciones (Issue #17 y #85)
+
+`GlobalExceptionHandler` (`@RestControllerAdvice`,
+`com.logitrack.shipment.controller`) traduce las excepciones de dominio y de
+framework a respuestas HTTP con un único formato `ErrorResponse`
+(`com.logitrack.shipment.dto.ErrorResponse`):
+
+```json
+{
+  "timestamp": "2026-10-17T20:00:00Z",
+  "status": 422,
+  "error": "Unprocessable Entity",
+  "code": "INVALID_STATE_TRANSITION",
+  "message": "Transición de estado inválida para Shipment: PENDIENTE -> ENTREGADO",
+  "path": "/api/v1/shipments/11111111-2222-3333-4444-555555555555/estado",
+  "details": [
+    { "field": "estado", "message": "Valor inválido: ENTREGADO" }
+  ]
+}
+```
+
+`details` es **opcional**: solo aparece cuando hay violaciones de campos o parámetros
+(validación, tipo inválido, etc.). `code` es un identificador estable pensado para que
+los clientes reaccionen sin parsear el mensaje.
+
+### Tabla excepción → HTTP
+
+| Excepción | HTTP | `code` | `details` |
+| --- | --- | --- | --- |
+| `ResourceNotFoundException` | 404 | `RESOURCE_NOT_FOUND` | no |
+| `DuplicateResourceException` | 409 | `DUPLICATE_RESOURCE` | no |
+| `BusinessRuleException` (base) | 422 | `BUSINESS_RULE_VIOLATION` | no |
+| `InvalidStateTransitionException` | 422 | `INVALID_STATE_TRANSITION` | no |
+| `ShipmentCannotBeCancelledException` | 422 | `SHIPMENT_CANNOT_BE_CANCELLED` | no |
+| `CourierNotActiveException` | 422 | `COURIER_NOT_ACTIVE` | no |
+| `CourierNotAssignedException` | 422 | `COURIER_NOT_ASSIGNED` | no |
+| `RemoteCourierException` | 401 / 403 / 503 | `COURIER_UNAUTHORIZED` / `COURIER_FORBIDDEN` / `COURIER_UNAVAILABLE` | no |
+| `MethodArgumentNotValidException` (`@Valid` en el body) | 400 | `VALIDATION_ERROR` | sí, por campo |
+| `ConstraintViolationException` (parámetros `@Validated`) | 400 | `CONSTRAINT_VIOLATION` | sí, por parámetro |
+| `HttpMessageNotReadableException` (JSON malformado / enum inválido) | 400 | `MALFORMED_REQUEST` | no |
+| `MethodArgumentTypeMismatchException` (UUID u otro tipo inválido) | 400 | `TYPE_MISMATCH` | sí, por parámetro |
+| `ObjectOptimisticLockingFailureException` (update concurrente) | 409 | `CONCURRENT_MODIFICATION` | no |
+| Cualquier otra `Exception` | 500 | `INTERNAL_SERVER_ERROR` | no |
+
+Las excepciones de dominio viven en `com.logitrack.shipment.exception` y todas
+extienden `DomainException`, que expone el `code()` que usa el handler. Las reglas de
+negocio parten de `BusinessRuleException` (422): las derivadas solo aportan su `code`
+y su mensaje. El handler 500 **no expone stacktrace ni detalles internos**: el error
+completo se registra con `log.error` y el cliente recibe un mensaje genérico.
+
+Los tests cubren cada fila de la tabla con un controller de prueba que lanza la
+excepción correspondiente:
+
+```bash
+./mvnw test -Dtest=GlobalExceptionHandlerTest
+```
+
+## Envíos
+
+| Método | Ruta | Resultado |
+| --- | --- | --- |
+| POST | `/api/v1/shipments` | 201, Location y envío con tarifa e historial inicial |
+| GET | `/api/v1/shipments/{id}` | Detalle por UUID |
+| GET | `/api/v1/shipments/tracking/{trackingCode}` | Detalle por seguimiento |
+| GET | `/api/v1/shipments?status=PENDIENTE&page=0&size=20` | Página, con estado opcional |
+| PUT | `/api/v1/shipments/{id}/courier` | Asigna repartidor validando disponibilidad vía OpenFeign |
+| PATCH | `/api/v1/shipments/{id}/status` | Cambia estado (valida repartidor activo en `EN_RUTA` vía OpenFeign) |
+
+La paginación empieza en 0, admite entre 1 y 100 elementos y ordena por fecha
+de creación descendente y UUID. La respuesta contiene `content`, `page`, `size`,
+`totalElements` y `totalPages`. Los datos inválidos devuelven 400; un recurso
+inexistente, 404; un conflicto de persistencia, 409. Los errores incluyen
+`timestamp`, `status`, `error`, `code`, `message`, `path` y `details`.
+
+El tracking usa SecureRandom (`LT-` y diez caracteres alfanuméricos mayúsculos),
+preconsulta de existencia e índice único en BD. Cada intento de alta es una
+transacción independiente; se reintenta únicamente una colisión de tracking y
+se aborta después de cinco intentos. Envío e historial se confirman juntos.
+
+## Descubrimiento centralizado (#78)
+
+El perfil `prod,sprint3` de config-repo activa Eureka y deja vacia
+`logitrack.courier.base-url`; Feign resuelve `courier-service` por nombre.
+En Compose se anuncian `SERVICE_HOST=shipment-service` y el registro interno
+`EUREKA_SERVER_URL=http://eureka-server:8065/eureka/`.
+Los perfiles anteriores conservan la opcion `EUREKA_CLIENT_ENABLED=false`.
+Esta rama parte del trabajo Feign de #84-#86; no reimplementa esos cambios.
