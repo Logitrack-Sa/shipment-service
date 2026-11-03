@@ -11,6 +11,7 @@ import com.logitrack.shipment.exception.CourierNotActiveException;
 import com.logitrack.shipment.exception.CourierNotAssignedException;
 import com.logitrack.shipment.exception.DuplicateResourceException;
 import com.logitrack.shipment.exception.InvalidStateTransitionException;
+import com.logitrack.shipment.exception.RemoteCourierException;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
 import com.logitrack.shipment.exception.ShipmentCannotBeCancelledException;
 import jakarta.validation.ConstraintViolation;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
@@ -119,6 +121,19 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.message")
                         .value("El envío " + SHIPMENT_ID + " no tiene repartidor asignado"))
                 .andExpect(jsonPath("$.path").value(RUTA + "/courier-sin-asignar"))
+                .andExpect(jsonPath("$.details").doesNotExist());
+    }
+
+    @Test
+    void remoteCourierExceptionDevuelve503EstructuradoCuandoCourierServiceNoResponde() throws Exception {
+        mvc.perform(get(RUTA + "/courier-no-disponible"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.error").value("Service Unavailable"))
+                .andExpect(jsonPath("$.code").value("COURIER_UNAVAILABLE"))
+                .andExpect(jsonPath("$.message").value("No se pudo validar el repartidor en el servicio remoto"))
+                .andExpect(jsonPath("$.path").value(RUTA + "/courier-no-disponible"))
                 .andExpect(jsonPath("$.details").doesNotExist());
     }
 
@@ -242,6 +257,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/explorar/courier-sin-asignar")
         void courierSinAsignar() {
             throw new CourierNotAssignedException(SHIPMENT_ID);
+        }
+
+        @GetMapping("/explorar/courier-no-disponible")
+        void courierNoDisponible() {
+            throw new RemoteCourierException(HttpStatus.SERVICE_UNAVAILABLE, "COURIER_UNAVAILABLE");
         }
 
         @GetMapping("/explorar/boom")

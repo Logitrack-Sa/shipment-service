@@ -7,7 +7,15 @@ public class RemoteCourierException extends RuntimeException {
     private final String code;
 
     public RemoteCourierException(HttpStatus status, String code) {
-        super("No se pudo validar el repartidor en el servicio remoto");
+        this(status, code, "No se pudo validar el repartidor en el servicio remoto", null);
+    }
+
+    public RemoteCourierException(HttpStatus status, String code, String message) {
+        this(status, code, message, null);
+    }
+
+    public RemoteCourierException(HttpStatus status, String code, String message, Throwable cause) {
+        super(message, cause);
         this.status = status;
         this.code = code;
     }

@@ -71,7 +71,7 @@ class HttpCourierLookupTest {
     FeignCourierLookup clientAt(int port) {
         var props = new CourierProperties(URI.create("http://127.0.0.1:" + port),
                 Duration.ofMillis(200), Duration.ofMillis(300));
-        return new FeignCourierLookup(createFeignClient(props));
+        return new FeignCourierLookup(createFeignClient(props), new CourierFeignFallbackFactory());
     }
 
     static CourierFeignClient createFeignClient(CourierProperties properties) {
@@ -80,6 +80,7 @@ class HttpCourierLookupTest {
         return Feign.builder()
                 .contract(new SpringMvcContract())
                 .decoder(new OptionalDecoder(new ResponseEntityDecoder(new SpringDecoder(converters))))
+                .errorDecoder(config.courierErrorDecoder())
                 .options(config.courierRequestOptions(properties))
                 .retryer(config.courierRetryer())
                 .requestInterceptor(config.courierBearerRequestInterceptor())
@@ -116,18 +117,43 @@ class HttpCourierLookupTest {
                 new DefaultServiceInstance("courier-1", "courier-service", "127.0.0.1", server.getAddress().getPort(), false));
         var instance = supplier.get().blockFirst().getFirst();
         var discoveredProps = new CourierProperties(instance.getUri(), props.connectTimeout(), props.readTimeout(), props.serviceId());
-        var discoveredClient = new FeignCourierLookup(createFeignClient(discoveredProps));
+        var discoveredClient = new FeignCourierLookup(
+                createFeignClient(discoveredProps),
+                new CourierFeignFallbackFactory());
         discoveredClient.requireAvailable(ID);
         assertThat(receivedPath).isEqualTo("/api/v1/couriers/" + ID + "/availability");
     }
 
     @Test void rejectsNullOrIncompleteDecodedPayloadWithoutNullPointerException() {
         var nullClient = new FeignCourierLookup(new CourierFeignClient() {
-            @Override public CourierResult getAvailability(UUID id) { return null; }
-            @Override public CourierResult getStatus(UUID id) { return new CourierResult(null, null, null); }
-        });
+            @Override public CourierResult getAvailability(UUID id, String authorization) { return null; }
+            @Override public CourierResult getStatus(UUID id, String authorization) { return new CourierResult(null, null, null); }
+        }, new CourierFeignFallbackFactory());
         assertUnavailable(() -> nullClient.requireAvailable(ID));
         assertUnavailable(() -> nullClient.requireActive(ID));
+    }
+
+    @Test void fallbackFactoryTranslatesTransportErrorsAndPreservesDomainExceptions() {
+        var fallbackFactory = new CourierFeignFallbackFactory();
+        var connectException = new ConnectException("Connection refused");
+
+        var transportFallback = fallbackFactory.create(connectException);
+        assertThatThrownBy(() -> transportFallback.getAvailability(ID, "Bearer validated-bearer"))
+                .isInstanceOfSatisfying(RemoteCourierException.class, ex -> {
+                    assertThat(ex.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(ex.code()).isEqualTo("COURIER_UNAVAILABLE");
+                    assertThat(ex.getCause()).isSameAs(connectException);
+                });
+        assertThatThrownBy(() -> transportFallback.getStatus(ID, "Bearer validated-bearer"))
+                .isInstanceOfSatisfying(RemoteCourierException.class, ex -> {
+                    assertThat(ex.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(ex.code()).isEqualTo("COURIER_UNAVAILABLE");
+                    assertThat(ex.getCause()).isSameAs(connectException);
+                });
+
+        var notFoundFallback = fallbackFactory.create(new ResourceNotFoundException("Repartidor", ID));
+        assertThatThrownBy(() -> notFoundFallback.getAvailability(ID, "Bearer validated-bearer"))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test void rejectsInactiveWithoutRetry() throws Exception {
@@ -156,6 +182,12 @@ class HttpCourierLookupTest {
         responseStatus = 422;
         responseBody = fixture("invalid");
         assertThatThrownBy(() -> client.requireAvailable(ID)).isInstanceOf(CourierNotActiveException.class);
+    }
+
+    @Test void translates422WithUnrecognizedCodeToUnavailable() {
+        responseStatus = 422;
+        responseBody = "{\"code\":\"UNEXPECTED_VALIDATION_ERROR\"}";
+        assertUnavailable(() -> client.requireAvailable(ID));
     }
 
     @ParameterizedTest

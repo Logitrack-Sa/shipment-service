@@ -3,12 +3,11 @@ package com.logitrack.shipment.client;
 import com.logitrack.shipment.client.CourierFeignClient.CourierResult;
 import com.logitrack.shipment.exception.CourierNotActiveException;
 import com.logitrack.shipment.exception.RemoteCourierException;
-import com.logitrack.shipment.exception.ResourceNotFoundException;
 import feign.FeignException;
 import java.util.UUID;
-import java.util.function.Supplier;
-import lombok.RequiredArgsConstructor;
+import java.util.function.BiFunction;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -17,13 +16,23 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class FeignCourierLookup implements CourierLookup {
     private final CourierFeignClient courierFeignClient;
+    private final CourierFeignFallbackFactory fallbackFactory;
+
+    public FeignCourierLookup(CourierFeignClient courierFeignClient) {
+        this(courierFeignClient, new CourierFeignFallbackFactory());
+    }
+
+    @Autowired
+    public FeignCourierLookup(CourierFeignClient courierFeignClient, CourierFeignFallbackFactory fallbackFactory) {
+        this.courierFeignClient = courierFeignClient;
+        this.fallbackFactory = fallbackFactory;
+    }
 
     @Override
     public void requireAvailable(UUID id) {
-        CourierResult result = execute(id, () -> courierFeignClient.getAvailability(id));
+        CourierResult result = execute((client, bearer) -> client.getAvailability(id, bearer));
         CourierResult validated = validateIdentity(result, id);
         Boolean available = validated.available();
         if (available == null || available != "ACTIVO".equals(validated.status())) {
@@ -37,34 +46,27 @@ public class FeignCourierLookup implements CourierLookup {
 
     @Override
     public void requireActive(UUID id) {
-        CourierResult result = execute(id, () -> courierFeignClient.getStatus(id));
+        CourierResult result = execute((client, bearer) -> client.getStatus(id, bearer));
         CourierResult validated = validateIdentity(result, id);
         if (!"ACTIVO".equals(validated.status())) {
             throw new CourierNotActiveException(id);
         }
     }
 
-    private CourierResult execute(UUID id, Supplier<CourierResult> call) {
+    private CourierResult execute(BiFunction<CourierFeignClient, String, CourierResult> call) {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!(authentication instanceof JwtAuthenticationToken jwt) || !jwt.isAuthenticated()) {
             throw new AccessDeniedException("Se requiere un Bearer validado para consultar repartidores");
         }
+        String bearer = "Bearer " + jwt.getToken().getTokenValue();
         try {
-            CourierResult response = call.get();
+            CourierResult response = call.apply(courierFeignClient, bearer);
             if (response == null) {
                 throw unavailable();
             }
             return response;
         } catch (FeignException exception) {
-            log.warn("Fallo HTTP/transporte ({}) al consultar repartidor {} en courier-service",
-                    exception.status(), id);
-            throw switch (exception.status()) {
-                case 404 -> new ResourceNotFoundException("Repartidor", id);
-                case 422 -> new CourierNotActiveException(id);
-                case 401 -> new RemoteCourierException(HttpStatus.UNAUTHORIZED, "COURIER_UNAUTHORIZED");
-                case 403 -> new RemoteCourierException(HttpStatus.FORBIDDEN, "COURIER_FORBIDDEN");
-                default -> unavailable();
-            };
+            return call.apply(fallbackFactory.create(exception), bearer);
         }
     }
 

@@ -3,6 +3,7 @@ package com.logitrack.shipment.client;
 import feign.Request;
 import feign.RequestInterceptor;
 import feign.Retryer;
+import feign.codec.ErrorDecoder;
 import java.util.concurrent.TimeUnit;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.openfeign.EnableFeignClients;
@@ -33,8 +34,16 @@ public class CourierClientConfig {
     }
 
     @Bean
+    public ErrorDecoder courierErrorDecoder() {
+        return new CourierErrorDecoder();
+    }
+
+    @Bean
     public RequestInterceptor courierBearerRequestInterceptor() {
         return template -> {
+            if (template.headers().containsKey(HttpHeaders.AUTHORIZATION)) {
+                return;
+            }
             var authentication = SecurityContextHolder.getContext().getAuthentication();
             if (!(authentication instanceof JwtAuthenticationToken jwt) || !jwt.isAuthenticated()) {
                 throw new AccessDeniedException("Se requiere un Bearer validado para consultar repartidores");

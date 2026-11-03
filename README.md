@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Logitrack-Sa/shipment-service/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Logitrack-Sa/shipment-service/actions/workflows/ci.yml)
 
-API de gestión de envíos. Java 25, Spring Boot 3.5, Spring Cloud 2025.0 (Config, Eureka Client, OpenFeign) y Maven Wrapper.
+API de gestión de envíos. Java 25, Spring Boot 3.5, Spring Cloud 2025.0 (Config, Eureka Client, OpenFeign, Resilience4j) y Maven Wrapper.
 
 ## Desarrollo
 
@@ -31,9 +31,9 @@ colisiones y rollback contra un MySQL 8.4 efímero. También verifica health,
 Swagger y OpenAPI por HTTP. Ese smoke test crea el esquema únicamente en su
 base aislada; la validación de migraciones productivas sigue en #27/#30.
 
-La suite unitaria (incluyendo el cliente declarativo Feign y la asignación de repartidores) puede ejecutarse sin BD ni red externa:
+La suite unitaria (incluyendo el cliente declarativo Feign, resiliencia y la asignación de repartidores) puede ejecutarse sin BD ni red externa:
 ```shell
-./mvnw test -Dtest=HttpCourierLookupTest,AssignCourierTest,ShipmentServiceTest,FeeCalculatorTest
+./mvnw test -Dtest=HttpCourierLookupTest,AssignCourierTest,ShipmentServiceTest,FeeCalculatorTest,GlobalExceptionHandlerTest
 ```
 
 ## Convenciones
@@ -77,25 +77,34 @@ Ejemplo: 2,5 kg y 30 × 20 × 40 cm tienen peso facturable de 4,8 kg y tarifa
 de 2200,00. Base y precio no negativos; divisor, peso y medidas positivos.
 Cambiar la configuración requiere reiniciar la aplicación.
 
-## Comunicación con `courier-service` (OpenFeign + Eureka · Issue #84)
+## Comunicación con `courier-service` y Resiliencia (OpenFeign + Eureka · Issues #84 y #85)
 
-`shipment-service` valida la disponibilidad y el estado de los repartidores comunicándose con `courier-service` mediante un cliente declarativo de **Spring Cloud OpenFeign** (`CourierFeignClient`) y resolución dinámica de instancias a través de **Eureka Server (`:8065`)**:
+`shipment-service` valida la disponibilidad y el estado de los repartidores comunicándose con `courier-service` mediante un cliente declarativo de **Spring Cloud OpenFeign** (`CourierFeignClient`), resolución dinámica de instancias a través de **Eureka Server (`:8065`)** y manejo resiliente de errores (`CourierErrorDecoder` + `CourierFeignFallbackFactory`):
 
-- **Descubrimiento dinámico**: `@FeignClient(name = "${logitrack.courier.service-id:courier-service}", url = "${logitrack.courier.base-url:}")` localiza las instancias de `courier-service` registradas en Eureka sin requerir direcciones IP ni puertos fijos.
+- **Descubrimiento dinámico**: `@FeignClient(name = "${logitrack.courier.service-id:courier-service}", url = "${logitrack.courier.base-url:}", fallbackFactory = CourierFeignFallbackFactory.class)` localiza las instancias de `courier-service` registradas en Eureka sin requerir direcciones IP ni puertos fijos.
 - **Endpoints consumidos**:
   - `GET /api/v1/couriers/{id}/availability` — valida disponibilidad al asignar un repartidor a un envío pendiente.
   - `GET /api/v1/internal/couriers/{id}/status` — valida que el repartidor asignado siga `ACTIVO` al pasar un envío a `EN_RUTA`.
-- **Seguridad y propagación de JWT**: Las peticiones externas ingresan por el **API Gateway (`:8080`)** y el `RequestInterceptor` de `CourierClientConfig` propaga el encabezado `Authorization: Bearer <token>` validado en el `SecurityContextHolder` hacia `courier-service`.
+- **Seguridad y propagación de JWT**: Las peticiones externas ingresan por el **API Gateway (`:8080`)** y el `RequestInterceptor` de `CourierClientConfig` propaga el encabezado `Authorization: Bearer <token>` validado en el `SecurityContextHolder` hacia `courier-service` en el mismo hilo de ejecución (`spring.cloud.circuitbreaker.resilience4j.disable-time-limiter=true`).
+- **Resiliencia y comportamiento cuando `courier-service` falla o no está disponible (Issue #85)**:
+  - **`CourierErrorDecoder`**: Traduce respuestas HTTP no exitosas de `courier-service`:
+    - `HTTP 404` $\rightarrow$ `ResourceNotFoundException` (`404 RESOURCE_NOT_FOUND`).
+    - `HTTP 422` $\rightarrow$ `CourierNotActiveException` (`422 COURIER_NOT_ACTIVE`).
+    - `HTTP 401` / `403` $\rightarrow$ `RemoteCourierException` (`401 COURIER_UNAUTHORIZED` / `403 COURIER_FORBIDDEN`).
+    - `HTTP 500` / `503` / otros $\rightarrow$ `RemoteCourierException` (`503 COURIER_UNAVAILABLE`).
+  - **`CourierFeignFallbackFactory` + Circuit Breaker**: Ante errores de transporte (`ConnectException`, timeouts, caída de `courier-service` o falta de instancias en Eureka), activa el fallback registrando el incidente con nivel `WARN` (sin exponer tokens ni datos sensibles) y lanza `RemoteCourierException` (`503 COURIER_UNAVAILABLE`), abortando cualquier asignación o transición de estado que no haya podido validarse.
 
 | Propiedad | Default | Variable de entorno |
 | --- | --- | --- |
 | `eureka.client.service-url.defaultZone` | `http://localhost:8065/eureka/` | `EUREKA_SERVER_URL` |
+| `spring.cloud.openfeign.circuitbreaker.enabled` | `true` | — |
+| `spring.cloud.circuitbreaker.resilience4j.disable-time-limiter` | `true` | — |
 | `logitrack.courier.service-id` | `courier-service` | — |
 | `logitrack.courier.connect-timeout` | `500ms` | — |
 | `logitrack.courier.read-timeout` | `1s` | — |
 | `logitrack.courier.base-url` | *(opcional, vacío con Eureka)* | `COURIER_SERVICE_URL` |
 
-## Manejo global de excepciones (Issue #17)
+## Manejo global de excepciones (Issue #17 y #85)
 
 `GlobalExceptionHandler` (`@RestControllerAdvice`,
 `com.logitrack.shipment.controller`) traduce las excepciones de dominio y de
