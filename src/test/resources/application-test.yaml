@@ -12,12 +12,16 @@ spring:
   flyway:
     enabled: false
 
+eureka:
+  client:
+    enabled: false
+
 logitrack:
   fee:
     base: 1000.00
     price-per-kg: 250.00
     volumetric-divisor: 5000
   courier:
-    base-url: http://127.0.0.1:1
+    service-id: courier-service
     connect-timeout: 200ms
     read-timeout: 300ms

@@ -1,17 +1,11 @@
 package com.logitrack.shipment.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.logitrack.shipment.client.CourierFeignClient.CourierResult;
 import com.logitrack.shipment.exception.*;
 import com.sun.net.httpserver.HttpServer;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.web.client.RestClient;
+import feign.Feign;
+import feign.optionals.OptionalDecoder;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -19,12 +13,28 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.beans.factory.ObjectFactory;
+import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
+import org.springframework.cloud.client.DefaultServiceInstance;
+import org.springframework.cloud.loadbalancer.core.ServiceInstanceListSupplier;
+import org.springframework.cloud.loadbalancer.support.ServiceInstanceListSuppliers;
+import org.springframework.cloud.openfeign.support.ResponseEntityDecoder;
+import org.springframework.cloud.openfeign.support.SpringDecoder;
+import org.springframework.cloud.openfeign.support.SpringMvcContract;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import static org.assertj.core.api.Assertions.*;
 
 class HttpCourierLookupTest {
     static final UUID ID = UUID.fromString("20000000-0000-0000-0000-000000000001");
     HttpServer server;
-    HttpCourierLookup client;
+    FeignCourierLookup client;
     int responseStatus = 200;
     String responseBody;
     long delay;
@@ -58,10 +68,22 @@ class HttpCourierLookupTest {
         client = clientAt(server.getAddress().getPort());
     }
 
-    HttpCourierLookup clientAt(int port) {
+    FeignCourierLookup clientAt(int port) {
         var props = new CourierProperties(URI.create("http://127.0.0.1:" + port),
                 Duration.ofMillis(200), Duration.ofMillis(300));
-        return new HttpCourierLookup(new CourierClientConfig().courierRestClient(RestClient.builder(), props));
+        return new FeignCourierLookup(createFeignClient(props));
+    }
+
+    static CourierFeignClient createFeignClient(CourierProperties properties) {
+        var config = new CourierClientConfig();
+        ObjectFactory<HttpMessageConverters> converters = HttpMessageConverters::new;
+        return Feign.builder()
+                .contract(new SpringMvcContract())
+                .decoder(new OptionalDecoder(new ResponseEntityDecoder(new SpringDecoder(converters))))
+                .options(config.courierRequestOptions(properties))
+                .retryer(config.courierRetryer())
+                .requestInterceptor(config.courierBearerRequestInterceptor())
+                .target(CourierFeignClient.class, properties.baseUrl().toString());
     }
 
     @AfterEach void cleanup() {
@@ -82,6 +104,30 @@ class HttpCourierLookupTest {
         client.requireActive(ID);
         assertThat(receivedPath).isEqualTo("/api/v1/internal/couriers/" + ID + "/status");
         assertThat(receivedBearer).isEqualTo("Bearer validated-bearer");
+    }
+
+    @Test void allowsDynamicServiceDiscoveryWithoutFixedBaseUrl() {
+        var props = new CourierProperties(null, Duration.ofMillis(200), Duration.ofMillis(300), "courier-service");
+        assertThat(props.isValid()).isTrue();
+        assertThat(props.baseUrl()).isNull();
+        assertThat(props.serviceId()).isEqualTo("courier-service");
+
+        ServiceInstanceListSupplier supplier = ServiceInstanceListSuppliers.from("courier-service",
+                new DefaultServiceInstance("courier-1", "courier-service", "127.0.0.1", server.getAddress().getPort(), false));
+        var instance = supplier.get().blockFirst().getFirst();
+        var discoveredProps = new CourierProperties(instance.getUri(), props.connectTimeout(), props.readTimeout(), props.serviceId());
+        var discoveredClient = new FeignCourierLookup(createFeignClient(discoveredProps));
+        discoveredClient.requireAvailable(ID);
+        assertThat(receivedPath).isEqualTo("/api/v1/couriers/" + ID + "/availability");
+    }
+
+    @Test void rejectsNullOrIncompleteDecodedPayloadWithoutNullPointerException() {
+        var nullClient = new FeignCourierLookup(new CourierFeignClient() {
+            @Override public CourierResult getAvailability(UUID id) { return null; }
+            @Override public CourierResult getStatus(UUID id) { return new CourierResult(null, null, null); }
+        });
+        assertUnavailable(() -> nullClient.requireAvailable(ID));
+        assertUnavailable(() -> nullClient.requireActive(ID));
     }
 
     @Test void rejectsInactiveWithoutRetry() throws Exception {
