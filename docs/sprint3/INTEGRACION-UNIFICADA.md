@@ -64,6 +64,10 @@ Genera usuarios de prueba mediante ADMIN y verifica login real, ausencia/token
 invalido 401, permisos 403, pertenencia entre identidades A/B, CORS, asignacion
 por Feign/Eureka, repartidor inexistente 404, caida 503 sin modificar envio ni
 historial, restauracion de courier y entrega por el repartidor asignado.
+Despues de restaurar courier se espera salud UP estable del Gateway durante
+35 segundos: un UP aislado puede preceder una respuesta antigua de la cache
+de Eureka. La espera total esta limitada a 180 segundos.
+Solo entonces comienza la siguiente comprobacion con Postman.
 
 El workflow sprint3-stack.yml obtiene las revisiones del manifiesto, ejecuta
 las suites de las seis aplicaciones y las pruebas de configuracion/Compose,

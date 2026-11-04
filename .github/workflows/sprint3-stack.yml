@@ -39,6 +39,7 @@ jobs:
         run: |
           python -m unittest discover -s ../config-repo/tests -v
           python -m unittest discover -s integration -p test_sprint3_compose.py -v
+          python -m unittest discover -s integration -p test_gateway_recovery.py -v
           python integration/build_sprint3.py --workspace .. --temporary "$RUNNER_TEMP/sprint3-build"
           CONFIG_LABEL=$(python -c "import json; print(json.load(open('deploy/sprint3-sources.json'))['config-repo'])")
           python integration/prepare_sprint3.py --config-label "$CONFIG_LABEL"

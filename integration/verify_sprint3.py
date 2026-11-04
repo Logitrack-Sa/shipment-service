@@ -64,6 +64,22 @@ def registered(eureka, timeout=180):
     raise AssertionError('No aparecieron los cuatro clientes UP en Eureka dentro del plazo')
 
 
+def wait_for_gateway(gateway, timeout=180, stable_seconds=35, poll_seconds=2):
+    deadline = time.monotonic() + timeout
+    healthy_since = None
+    while time.monotonic() < deadline:
+        status, payload = request(gateway.rstrip('/') + '/actuator/health')
+        if status == 200 and payload.get('status') == 'UP':
+            healthy_since = healthy_since if healthy_since is not None else time.monotonic()
+            if time.monotonic() - healthy_since >= stable_seconds:
+                return
+        else:
+            healthy_since = None
+        assert status in (200, 503), f'Salud inesperada del Gateway: HTTP {status}'
+        time.sleep(poll_seconds)
+    raise AssertionError('Gateway no recupero su catalogo de Eureka dentro del plazo')
+
+
 def verify(args):
     values = dict(line.split('=', 1) for line in Path(args.env_file).read_text(encoding='utf-8').splitlines()
                   if line.strip() and not line.startswith('#'))
@@ -126,6 +142,8 @@ def verify(args):
             finally:
                 subprocess.run(compose+['up', '-d', '--no-build', '--wait', '--wait-timeout', '300',
                                         'courier-service'], check=True, capture_output=True)
+            wait_for_gateway(gateway)
+            report['checks'].append('Courier restaurado y Gateway UP tras renovar Eureka')
         if actors:
             delivery(call, token, actors['courier'], shipment)
             report['checks'].append('Entrega por repartidor asignado, historial y rechazo de transicion terminal')
