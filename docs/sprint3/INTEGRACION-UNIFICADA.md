@@ -46,6 +46,9 @@ servicios mantienen sus controles de permisos y pertenencia.
   de rutas. Los puertos de aplicaciones y bases de dominio son internos.
 - Config Server verifica configuraciones de Gateway y Eureka en sprint3, usando
   la misma revision Git que sus clientes. Compose espera configuracion Git real.
+- El healthcheck del Gateway espera que su catalogo local de Eureka contenga
+  los tres servicios UP; el registro del servidor por si solo no garantiza que
+  LoadBalancer ya tenga destinos disponibles al primer intento.
 - Las seis aplicaciones se construyen como imagenes sprint3-local. No se
   sobrescriben los tags publicados del Sprint 2.
 
