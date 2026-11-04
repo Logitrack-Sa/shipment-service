@@ -68,7 +68,8 @@ historial, restauracion de courier y entrega por el repartidor asignado.
 El workflow sprint3-stack.yml obtiene las revisiones del manifiesto, ejecuta
 las suites de las seis aplicaciones y las pruebas de configuracion/Compose,
 construye las imagenes y repite esa comprobacion con nueve contenedores reales.
-El unico artefacto conservado es target/sprint3/report.json, sin credenciales.
+Los artefactos conservados son target/sprint3/report.json y postman-results.xml,
+sin requests, tokens ni entornos privados.
 La retirada de volumenes de ese workflow solo afecta al runner descartable.
 
 La primera ejecucion completa aprobada es
@@ -86,6 +87,22 @@ se guarda en /tmp/.config para mantener la ejecucion sin privilegios.
 - Shipment, infraestructura y verificacion: https://github.com/Logitrack-Sa/shipment-service/pull/95
 
 ## Demostracion manual con Postman
+
+Importar postman/LogiTrack_Sprint3.postman_collection.json (25 peticiones ordenadas).
+La plantilla de entorno publica no incluye claves. Para preparar un entorno local:
+
+```powershell
+python integration/export_sprint3_postman.py
+```
+
+Importar target/sprint3/postman.environment.json solo en la instalacion local de
+Postman y ejecutar las carpetas en orden. Ese archivo contiene credenciales y
+esta excluido de Git. La coleccion obtiene los JWT reales durante la ejecucion,
+crea sus propios datos y comprueba 200/201, 401, 403, 404 y CORS.
+Tambien puede ejecutarse con Newman usando -e para ese entorno; guardar solo
+el resumen JUnit de resultados, sin exportar requests, tokens o entornos.
+La coleccion se ejecuto localmente con Newman 6.2.1: 25 peticiones y 35
+aserciones aprobadas. El workflow distribuido repite la misma coleccion.
 
 Usar http://localhost:8066 como base para todos los servicios. Iniciar sesion con
 POST /api/v1/auth/login y JSON con email/password de la cuenta local; copiar
