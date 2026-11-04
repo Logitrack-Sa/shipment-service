@@ -1,11 +1,11 @@
-"""Empaqueta los JAR ya probados de los cinco repositorios sin repetir Maven en Docker."""
+"""Empaqueta los JAR ya probados de las seis aplicaciones sin repetir Maven en Docker."""
 import argparse
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 
-SERVICES = ('eureka-server', 'security-service', 'courier-service', 'shipment-service', 'api-gateway')
+SERVICES = ('config-server', 'eureka-server', 'security-service', 'courier-service', 'shipment-service', 'api-gateway')
 
 
 def build(workspace, temporary, services=SERVICES):

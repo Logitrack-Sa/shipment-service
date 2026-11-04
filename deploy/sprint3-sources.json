@@ -1,0 +1,8 @@
+{
+  "config-repo": "0e4629597bc2845b000e14ece6a01e9b53d40fa0",
+  "config-server": "05cee99bd7f4317d2e3bfd187bc0d24545f3388a",
+  "eureka-server": "7c9079c57fca3c5fa92ae1d74b7d8dbd741f6584",
+  "security-service": "3113fc2b9ca4db922f220f9720c1f0f3a9c2bd25",
+  "courier-service": "ef90f9b647afa6ce655964e0fa9e677740315f8c",
+  "api-gateway": "8af768b65f40f740191ad277249473c36fd66a2c"
+}
