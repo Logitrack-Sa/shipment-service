@@ -1,5 +1,9 @@
 # Evidencia de infraestructura - 2 de noviembre de 2026
 
+Este registro conserva la prueba inicial del 2 de noviembre. La arquitectura
+unificada y sus instrucciones actuales se describen en INTEGRACION-UNIFICADA.md;
+los pendientes y rutas de diagnostico de este registro corresponden a esa fecha.
+
 ## Resultado
 
 Los nueve contenedores iniciaron con `deploy/docker-compose.yml` y quedaron

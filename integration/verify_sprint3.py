@@ -9,6 +9,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, build_opener
 from uuid import uuid4
 from http_api import NoRedirect
+from sprint3_security import cors, roles, delivery
 
 EXPECTED = {'SHIPMENT-SERVICE': 8081, 'COURIER-SERVICE': 8082,
             'SECURITY-SERVICE': 8083, 'API-GATEWAY': 8080}
@@ -86,6 +87,7 @@ def verify(args):
                      {'email': values['SECURITY_ADMIN_EMAIL'], 'password': values['SECURITY_ADMIN_PASSWORD']})['accessToken']
         report['checks'].append('Login ADMIN mediante Gateway')
         call('shipment-service', '/api/v1/shipments', expected=401)
+        call('shipment-service', '/api/v1/shipments', token='invalid.jwt.token', expected=401)
         call('shipment-service', '/api/v1/shipments', token=token)
         report['checks'].append('Bearer propagado y rechazo de peticion anonima por el sistema')
         unique = uuid4().hex[:12]
@@ -104,24 +106,32 @@ def verify(args):
         report['checks'].append('Asignacion con Feign, Eureka y courier reales')
         call('shipment-service', path+'/courier', 'PUT', {'courierId': str(uuid4())}, token, 404)
         report['checks'].append('Repartidor inexistente devuelve 404 controlado')
+        actors = None
+        if not args.discovery_routes:
+            cors(gateway.rstrip('/'), args.cors_origin)
+            actors = roles(call, token, customer, courier, shipment)
+            report['checks'].append('JWT, roles ADMIN/CLIENTE/REPARTIDOR, pertenencia A/B y CORS permitidos/denegados')
         if args.allow_courier_stop:
             compose = ['docker', 'compose', '--env-file', str(Path(args.env_file).resolve()),
                        '-f', 'deploy/docker-compose.yml', '-p', args.project]
             before = call('shipment-service', path, token=token)
+            history = call('shipment-service', path+'/history', token=token)
             try:
                 subprocess.run(compose+['stop', 'courier-service'], check=True, capture_output=True)
                 call('shipment-service', path+'/courier', 'PUT', {'courierId': courier['id']}, token, 503)
                 after = call('shipment-service', path, token=token)
                 assert after == before, 'Se modifico el envio pese al fallo remoto'
+                assert call('shipment-service', path+'/history', token=token) == history, 'Fallo remoto genero auditoria'
                 report['checks'].append('Courier caido: 503 estructurado sin modificar el envio')
             finally:
                 subprocess.run(compose+['up', '-d', '--no-build', '--wait', '--wait-timeout', '300',
                                         'courier-service'], check=True, capture_output=True)
+        if actors:
+            delivery(call, token, actors['courier'], shipment)
+            report['checks'].append('Entrega por repartidor asignado, historial y rechazo de transicion terminal')
         report['result'] = 'passed'
-        report['fullSprint3Acceptance'] = False
-        # El smoke acredita infraestructura y Feign; la matriz JWT/CORS y roles
-        # del Gateway corresponde a la suite de integracion #88 del equipo.
-        report['scope'] = 'Infraestructura #77-#79/#87 y comunicacion real; no sustituye #88'
+        report['fullSprint3Acceptance'] = bool(actors and args.allow_courier_stop)
+        report['scope'] = 'Integracion real #88' if report['fullSprint3Acceptance'] else 'Comprobacion parcial de infraestructura'
     except (AssertionError, OSError, KeyError, subprocess.SubprocessError) as error:
         report['result'] = 'failed'
         report['error'] = str(error)
@@ -140,5 +150,6 @@ if __name__ == '__main__':
     parser.add_argument('--eureka', default='http://127.0.0.1:8065')
     parser.add_argument('--discovery-routes', action='store_true', help='Diagnostico explicito del Gateway en desarrollo')
     parser.add_argument('--allow-courier-stop', action='store_true')
+    parser.add_argument('--cors-origin', default='http://localhost:3000')
     parser.add_argument('--report', default='target/sprint3/report.json')
     raise SystemExit(verify(parser.parse_args()))
