@@ -8,10 +8,10 @@ Alex es responsable de #77 (Eureka), #78 (registro de clientes), #79
 En #88 y #89 aporta infraestructura y evidencia, manteniendo los responsables
 principales de pruebas integrales y documentacion.
 
-Se reutilizan las ramas de Pablo para #84-#86 y la base del Gateway de Gonzalo
-para #80. Los PR de registro de shipment y Gateway se apilan sobre esas ramas;
-no cambian autoria ni implementan nuevamente Feign, rutas, JWT o CORS.
-La promocion a main requiere integrar primero esas dependencias.
+Se integran en develop los commits de Pablo para #84-#86 y los de Gonzalo para
+#80-#83, conservando autores e historial. La unificacion resuelve los contratos
+de Config, JWT, CORS y Compose y agrega pruebas distribuidas de #88.
+La promocion a main es una entrega posterior. Ver INTEGRACION-UNIFICADA.md.
 
 ## Secuencia de commits prevista
 

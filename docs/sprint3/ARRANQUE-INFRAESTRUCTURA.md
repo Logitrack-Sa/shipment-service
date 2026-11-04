@@ -3,27 +3,29 @@
 ## Preparacion
 
 Docker Desktop en modo Linux, Java 25, Python 3 y OpenSSL (incluido con Git para
-Windows). Mantener los siete repositorios como carpetas hermanas. Usar las ramas
-de los PR indicados en PLAN-Y-ALCANCE.md hasta su integracion; main por si solo
-todavia no contiene todos los cambios del equipo.
+Windows). Mantener los siete repositorios como carpetas hermanas y sincronizar
+develop. Las revisiones compatibles estan en deploy/sprint3-sources.json;
+main todavia corresponde a otra etapa de entrega.
 
-En eureka-server, security-service, courier-service, shipment-service y
-api-gateway ejecutar `./mvnw.cmd package` (Linux: `./mvnw package`). Verificar que
+En config-server, eureka-server, security-service, courier-service, shipment-service
+y api-gateway ejecutar `./mvnw.cmd package` (Linux: `./mvnw package`). Verificar que
 las suites terminen correctamente antes de construir las imagenes. Las pruebas
 de repositorios shipment necesitan Docker/MySQL; sus datos descartables usan
 tmpfs de 512 MiB para reducir I/O. Las bases de Compose siguen siendo persistentes.
-Config Server reutiliza la imagen fijada de la entrega Sprint 2.
+Config Server tambien se construye desde la fuente actualizada del equipo.
 
 Desde shipment-service:
 
 ```powershell
+python integration/sprint3_sources.py --workspace ..
 python integration/build_sprint3.py --workspace .. --temporary D:/DockerData/build-sprint3
-python integration/prepare_sprint3.py --config-label e996cd5f3374f38d0a1e3e19de152e8f5cedc29d
+python integration/prepare_sprint3.py
 docker compose --env-file target/sprint3/runtime.env -f deploy/docker-compose.yml -p logitrack-sprint3 up -d --no-build --wait --wait-timeout 900
 ```
 
-El SHA de ejemplo debe coincidir con el commit publicado del PR de config-repo;
-comprobarlo con `git -C ../config-repo rev-parse HEAD` y usar ese valor completo.
+La revision de configuracion se toma del manifiesto. Para un runtime.env existente,
+conservar todas las credenciales y cambiar solamente CONFIG_GIT_LABEL al SHA de
+config-repo indicado en ese archivo. No generar otras claves para las mismas bases.
 La carpeta temporal puede cambiarse a otro disco con espacio disponible.
 Las imagenes se construyen desde JAR actuales, usando el mismo runtime Java no
 root y sin volver a descargar Maven dentro de cada build.
@@ -57,26 +59,24 @@ python -m unittest discover -s integration -p test_sprint3_compose.py -v
 python integration/verify_sprint3.py
 ```
 
-La segunda orden exige las rutas publicas definitivas `/api/v1/...` del Gateway.
-Mientras #81-#83 esten pendientes, el modo de diagnostico explicito usa las
-rutas de discovery de la base #80:
+La segunda orden utiliza las rutas publicas `/api/v1/...` del Gateway. Para
+incluir la caida y restauracion de courier y la matriz de roles y pertenencia:
 
 ```powershell
-python integration/verify_sprint3.py --discovery-routes --allow-courier-stop
+python integration/verify_sprint3.py --allow-courier-stop
 ```
 
-Ese modo prueba registro real, login a traves de Gateway, acceso con/sin Bearer,
-asignacion mediante Feign y Eureka, 404 y caida/restauracion de courier sin
-modificar el envio. El reporte distingue este smoke de la aceptacion integral:
-no acredita JWT/CORS centralizados ni toda la matriz de roles de #88.
+La prueba verifica registro real, login y JWT en Gateway, ADMIN/CLIENTE/REPARTIDOR,
+pertenencia A/B, CORS permitido/denegado, Feign, 404 y caida/restauracion de courier
+sin modificar el envio ni su historial. Finalmente comprueba entrega y estado
+terminal. El reporte solo marca fullSprint3Acceptance=true con todos esos pasos.
 Genera datos de demo unicos; no borra recursos ni volumenes. La opcion de parada
 detiene solamente courier del proyecto indicado y lo restaura al terminar.
 
-Las rutas temporales de diagnostico son:
-`/security-service/api/v1/auth/login`, `/shipment-service/api/v1/shipments` y
-`/courier-service/api/v1/couriers`, todas en el puerto 8066. La coleccion docente
-de hoteles no utiliza estos contratos. La coleccion Postman de LogiTrack requiere
-adaptar su base al Gateway y contemplar el DNI del contrato actual de courier.
+Las rutas son `/api/v1/auth/login`, `/api/v1/shipments` y `/api/v1/couriers`,
+todas en el puerto 8066. El discovery locator generico esta desactivado:
+usar las rutas publicas declaradas. En Postman, utilizar la misma base del
+Gateway para los tres servicios y contemplar el DNI requerido por courier.
 
 Si 8066 esta ocupado, preparar el entorno con `--gateway-port 18080` o ajustar
 solo GATEWAY_PORT en su runtime.env existente. El puerto interno permanece 8080
