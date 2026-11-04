@@ -71,6 +71,12 @@ construye las imagenes y repite esa comprobacion con nueve contenedores reales.
 El unico artefacto conservado es target/sprint3/report.json, sin credenciales.
 La retirada de volumenes de ese workflow solo afecta al runner descartable.
 
+La primera ejecucion completa aprobada es
+https://github.com/Logitrack-Sa/shipment-service/actions/runs/41753510385.
+Comprueba las seis suites Java (437 pruebas), 11 contratos de configuracion,
+cuatro contratos de Compose y el flujo distribuido. La cache auxiliar de JGit
+se guarda en /tmp/.config para mantener la ejecucion sin privilegios.
+
 ## PR de integracion
 
 - Configuracion: https://github.com/Logitrack-Sa/config-repo/pull/8
