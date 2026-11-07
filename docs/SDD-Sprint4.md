@@ -774,6 +774,7 @@ export function handleApiError(error: any, setFormErrors?: (fields: Record<strin
     "name": "María González",
     "roles": ["CLIENTE"],
     "enabled": false,
+    "emailVerified": false,
     "customerId": null,
     "courierId": null
   }
@@ -790,6 +791,7 @@ export function handleApiError(error: any, setFormErrors?: (fields: Record<strin
     "name": "Carlos Administrador",
     "roles": ["ADMIN", "CLIENTE"],
     "enabled": true,
+    "emailVerified": true,
     "customerId": "8f14e45f-9a10-48e6-b258-00a43876e6a1",
     "courierId": null
   }
@@ -1045,6 +1047,7 @@ export interface UserResponse {
   name?: string;
   roles: AnyRole[];
   enabled: boolean;
+  emailVerified: boolean;
   customerId?: string | null;
   courierId?: string | null;
 }
@@ -1181,11 +1184,12 @@ sequenceDiagram
     GW->>SEC: Rutea registro
     SEC->>DB: Guarda User (enabled=false, email_verified=false)
     SEC->>DB: Genera y persiste VerificationToken (UUID, expiry=now+24h)
-    SEC-->>GW: 201 Created (UserResponse con enabled=false)
-    GW-->>FE: 201 Created (Notifica al usuario que revise su email)
-
-    Note over SEC,GMAIL: Disparo Asíncrono en Background (@Async)
+    SEC->>SEC: Registra TransactionSynchronization.afterCommit
+    SEC->>DB: Commit de User y VerificationToken
+    Note over SEC,GMAIL: afterCommit despacha el correo mediante @Async
     SEC-)GMAIL: Envía correo con link: http://localhost:3000/verify-email?token=<UUID>
+    SEC-->>GW: 201 Created (UserResponse con enabled=false, emailVerified=false)
+    GW-->>FE: 201 Created (Notifica al usuario que revise su email)
 
     Note over User,FE: El usuario abre el correo y hace clic en el enlace
     User->>FE: Navega a /verify-email?token=d3b07384d113...
@@ -1200,6 +1204,10 @@ sequenceDiagram
     FE->>User: Muestra Toast de éxito y redirige a /login
 ```
 
+El registro guarda el usuario y su token en una misma transacción y registra una sincronización mediante `TransactionSynchronizationManager.registerSynchronization(...)`. Únicamente el callback `afterCommit` invoca `EmailService.sendVerificationEmail(...)`, cuyo método `@Async` ejecuta el envío en segundo plano. Si la transacción se revierte, no se despacha el correo; la respuesta HTTP no espera a que termine el envío SMTP.
+
+El envío registra los contadores Micrometer `email.delivery.success` cuando `JavaMailSender.send(...)` finaliza correctamente y `email.delivery.failure` ante una configuración SMTP incompleta o una excepción de envío. Un fallo de correo posterior al commit no revierte el registro. El contador de éxito indica que el envío SMTP finalizó sin error, sin confirmar la recepción en la bandeja del destinatario. Las consultas PromQL se detallan en la sección 5.3.4.
+
 #### 5.1.1. Modelo de Datos y Máquina de Estados
 
 ##### Entidad JPA `VerificationToken`
@@ -1207,6 +1215,7 @@ sequenceDiagram
 package com.logitrack.security.entity;
 
 import jakarta.persistence.*;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -1230,7 +1239,7 @@ public class VerificationToken {
     @Column(nullable = false, unique = true, length = 36)
     private String token; // UUID v4
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
@@ -1247,8 +1256,12 @@ public class VerificationToken {
         this.revoked = false;
     }
 
+    public boolean isExpired(Clock clock) {
+        return !Instant.now(clock).isBefore(this.expiryDate);
+    }
+
     public boolean isExpired() {
-        return Instant.now().isAfter(this.expiryDate);
+        return isExpired(Clock.systemUTC());
     }
 }
 ```
@@ -1575,10 +1588,14 @@ providers:
 
 #### 5.3.4. Métricas Clave y Consultas PromQL
 
+Los contadores Micrometer `email.delivery.success` y `email.delivery.failure` se exportan a Prometheus como `email_delivery_success_total` y `email_delivery_failure_total`. Miden el resultado del envío `@Async` despachado mediante la sincronización transaccional `afterCommit` descrita en la sección 5.1. Una transacción revertida no dispara el envío ni incrementa estos contadores.
+
 | Panel / Métrica | Consulta PromQL | Propósito Operativo |
 | :--- | :--- | :--- |
 | **Latencia HTTP (P95)** | `histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, uri))` | Detecta cuellos de botella en endpoints. |
 | **Tasa de Errores 5xx** | `sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count[5m])) * 100` | Alerta inmediata ante excepciones 5xx. |
+| **Correos enviados (`email.delivery.success`)** | `sum(rate(email_delivery_success_total[5m]))` | Envíos SMTP sin error por segundo. |
+| **Fallos de correo (`email.delivery.failure`)** | `sum(rate(email_delivery_failure_total[5m]))` | Fallos por segundo por configuración SMTP incompleta o excepciones de envío. |
 | **Pool HikariCP** | `hikaricp_connections_active{pool="HikariPool-1"}` vs `hikaricp_connections_max` | Previene la saturación del pool de base de datos. |
 | **Eficiencia de Caché Redis** | `sum(rate(cache_gets_total{result="hit"}[5m])) / sum(rate(cache_gets_total[5m])) * 100` | Mide la efectividad del patrón Cache-Aside. |
 | **Consumo de Heap JVM** | `jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"} * 100` | Supervisa que ningún servicio supere los 224 MB. |
