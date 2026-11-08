@@ -1,5 +1,6 @@
 package com.logitrack.shipment.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.logitrack.shipment.entity.ShipmentStatus;
 import java.time.Instant;
 import java.util.UUID;
@@ -15,6 +16,6 @@ public record ShipmentStatusChangedEvent(
         String courierId,
         ShipmentStatus previousStatus,
         ShipmentStatus currentStatus,
-        Instant occurredAt
+        @JsonFormat(shape = JsonFormat.Shape.STRING) Instant occurredAt
 ) {
 }

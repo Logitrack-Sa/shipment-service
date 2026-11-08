@@ -17,6 +17,7 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -142,7 +143,9 @@ public class GlobalExceptionHandler {
         problem.setProperty("code", exception.code());
         problem.setProperty("timestamp", Instant.now());
         problem.setProperty("email_verified", false);
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(problem);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

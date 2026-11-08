@@ -1,10 +1,8 @@
 package com.logitrack.shipment.service;
 
-import com.logitrack.shipment.config.RabbitMQConfig;
 import com.logitrack.shipment.security.ShipmentAccess;
 import com.logitrack.shipment.dto.CreateShipmentRequest;
 import com.logitrack.shipment.dto.ShipmentResponse;
-import com.logitrack.shipment.dto.ShipmentStatusChangedEvent;
 import com.logitrack.shipment.dto.PageResponse;
 import com.logitrack.shipment.entity.Shipment;
 import com.logitrack.shipment.entity.ShipmentStatus;
@@ -18,19 +16,13 @@ import com.logitrack.shipment.exception.ShipmentCannotBeCancelledException;
 import com.logitrack.shipment.mapper.ShipmentMapper;
 import com.logitrack.shipment.client.CourierLookup;
 import com.logitrack.shipment.repository.ShipmentRepository;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.AmqpException;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.UUID;
 
-@Slf4j
 @Service
 public class ShipmentService {
     private static final int MAX_TRACKING_ATTEMPTS = 5;
@@ -43,20 +35,8 @@ public class ShipmentService {
     private final CourierLookup couriers;
     private final ShipmentStatusRecorder statusRecorder;
     private final ShipmentAccess access;
-    private final RabbitTemplate rabbitTemplate;
+    private final ShipmentStatusEventOutbox eventOutbox;
 
-    public ShipmentService(
-            ShipmentRepository shipments,
-            ShipmentCreator creator,
-            TrackingCodeGenerator trackingCodes,
-            ShipmentMapper mapper,
-            CourierLookup couriers,
-            ShipmentStatusRecorder statusRecorder,
-            ShipmentAccess access) {
-        this(shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access, null);
-    }
-
-    @Autowired
     public ShipmentService(
             ShipmentRepository shipments,
             ShipmentCreator creator,
@@ -65,7 +45,7 @@ public class ShipmentService {
             CourierLookup couriers,
             ShipmentStatusRecorder statusRecorder,
             ShipmentAccess access,
-            RabbitTemplate rabbitTemplate) {
+            ShipmentStatusEventOutbox eventOutbox) {
         this.shipments = shipments;
         this.creator = creator;
         this.trackingCodes = trackingCodes;
@@ -73,7 +53,7 @@ public class ShipmentService {
         this.couriers = couriers;
         this.statusRecorder = statusRecorder;
         this.access = access;
-        this.rabbitTemplate = rabbitTemplate;
+        this.eventOutbox = eventOutbox;
     }
 
 
@@ -163,33 +143,8 @@ public class ShipmentService {
 
         shipment.changeStatusTo(target);
         statusRecorder.record(shipment, from, target, observation);
-        publishStatusChangedEvent(shipment, from, target);
+        eventOutbox.record(shipment, from, target);
         return mapper.toResponse(shipment);
-    }
-
-    private void publishStatusChangedEvent(Shipment shipment, ShipmentStatus from, ShipmentStatus target) {
-        if (rabbitTemplate == null) {
-            return;
-        }
-        ShipmentStatusChangedEvent event = new ShipmentStatusChangedEvent(
-                UUID.randomUUID(),
-                shipment.getId() != null ? shipment.getId().toString() : null,
-                shipment.getTrackingCode(),
-                shipment.getCourierId() != null ? shipment.getCourierId().toString() : null,
-                from,
-                target,
-                Instant.now()
-        );
-        try {
-            rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.SHIPMENT_EXCHANGE,
-                    RabbitMQConfig.SHIPMENT_STATUS_CHANGED_ROUTING_KEY,
-                    event
-            );
-        } catch (AmqpException exception) {
-            log.warn("No se pudo publicar el evento ShipmentStatusChangedEvent en RabbitMQ para el envío {}: {}",
-                    shipment.getId(), exception.getMessage());
-        }
     }
 
     /**

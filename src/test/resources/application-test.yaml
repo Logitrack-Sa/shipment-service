@@ -13,6 +13,12 @@ spring:
     enabled: false
   rabbitmq:
     connection-timeout: 50ms
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+      retry:
+        enabled: false
     listener:
       simple:
         auto-startup: false
@@ -27,6 +33,9 @@ eureka:
     enabled: false
 
 logitrack:
+  outbox:
+    enabled: false
+    publish-interval-ms: 3600000
   fee:
     base: 1000.00
     price-per-kg: 250.00

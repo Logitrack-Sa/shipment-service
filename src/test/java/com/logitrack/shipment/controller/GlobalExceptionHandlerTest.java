@@ -215,6 +215,8 @@ class GlobalExceptionHandlerTest {
     void accountNotVerifiedExceptionDevuelve403ProblemDetail() throws Exception {
         mvc.perform(get(RUTA + "/cuenta-no-verificada"))
                 .andExpect(status().isForbidden())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .contentType(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.type").value("https://logitrack.com/errors/account-not-verified"))
                 .andExpect(jsonPath("$.title").value("Account Not Verified"))
                 .andExpect(jsonPath("$.status").value(403))

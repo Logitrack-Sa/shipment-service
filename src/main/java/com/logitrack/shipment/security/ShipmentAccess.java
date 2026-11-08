@@ -66,13 +66,7 @@ public class ShipmentAccess {
             throw denied();
         }
         Object claim = jwtAuth.getToken().getClaims().get("email_verified");
-        if (claim instanceof Boolean verified) {
-            return verified;
-        }
-        if (claim instanceof String text) {
-            return Boolean.parseBoolean(text);
-        }
-        return false;
+        return Boolean.TRUE.equals(claim);
     }
 
     private static AccessDeniedException denied() { return new AccessDeniedException("Acceso a envío denegado"); }

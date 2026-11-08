@@ -68,6 +68,28 @@ public class ShipmentController {
     @Operation(summary = "Registrar un envío")
     @ApiResponse(responseCode = "201", description = "Envío registrado")
     @ApiResponse(responseCode = "400", description = "Datos inválidos")
+    @ApiResponse(
+        responseCode = "403",
+        description = "La cuenta no tiene el correo verificado (ACCOUNT_NOT_VERIFIED)",
+        content = @Content(
+            mediaType = "application/problem+json",
+            schema = @Schema(implementation = org.springframework.http.ProblemDetail.class),
+            examples = @ExampleObject(
+                name = "Cuenta no verificada",
+                value = """
+                    {
+                      "type": "https://logitrack.com/errors/account-not-verified",
+                      "title": "Account Not Verified",
+                      "status": 403,
+                      "detail": "No puedes solicitar envíos hasta que confirmes tu dirección de correo electrónico.",
+                      "instance": "/api/v1/shipments",
+                      "code": "ACCOUNT_NOT_VERIFIED",
+                      "email_verified": false
+                    }
+                    """
+            )
+        )
+    )
     @ApiResponse(responseCode = "404", description = "Cliente inexistente")
     @ApiResponse(responseCode = "409", description = "Conflicto al registrar el envío")
     public ResponseEntity<ShipmentResponse> create(@Valid @RequestBody CreateShipmentRequest request) {

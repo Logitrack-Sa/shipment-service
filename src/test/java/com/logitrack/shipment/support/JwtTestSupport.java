@@ -54,6 +54,23 @@ public abstract class JwtTestSupport {
     public static String token(String name) { return token(name, Map.of()); }
 
     public static String token(String name, Map<String, Object> overrides) {
+        Map<String, Object> claims = new LinkedHashMap<>(overrides);
+        claims.putIfAbsent("email_verified", true);
+        return signedToken(name, claims, JWSAlgorithm.RS256, KID);
+    }
+
+    /**
+     * Construye un token válido sin el claim {@code email_verified}, para verificar que su
+     * ausencia no habilita la creación de envíos.
+     */
+    public static String tokenWithoutEmailVerified(String name) {
+        return tokenWithoutEmailVerified(name, Map.of());
+    }
+
+    /**
+     * Construye un token válido sin {@code email_verified} y con los claims adicionales indicados.
+     */
+    public static String tokenWithoutEmailVerified(String name, Map<String, Object> overrides) {
         return signedToken(name, overrides, JWSAlgorithm.RS256, KID);
     }
 
@@ -62,8 +79,7 @@ public abstract class JwtTestSupport {
             JsonNode identity = IDENTITIES.get(name);
             var claims = new JWTClaimsSet.Builder().subject(identity.get("sub").asText()).issuer(ISSUER)
                     .audience(List.of(AUDIENCE, "courier-service")).issueTime(Date.from(Instant.now()))
-                    .expirationTime(Date.from(Instant.now().plusSeconds(600)))
-                    .claim("email_verified", true);
+                    .expirationTime(Date.from(Instant.now().plusSeconds(600)));
             identity.fields().forEachRemaining(entry -> {
                 if (entry.getKey().equals("roles")) {
                     claims.claim("roles", new ObjectMapper().convertValue(entry.getValue(), List.class));
