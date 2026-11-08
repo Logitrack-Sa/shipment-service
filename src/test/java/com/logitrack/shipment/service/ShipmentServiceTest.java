@@ -61,6 +61,9 @@ class ShipmentServiceTest {
     @Mock
     private CourierLookup couriers;
 
+    @Mock
+    private ShipmentStatusEventOutbox eventOutbox;
+
     private ShipmentService service;
 
     @BeforeEach
@@ -68,7 +71,8 @@ class ShipmentServiceTest {
         var mapper = new ShipmentMapper();
         var fees = new FeeCalculator(new BigDecimal("1000"), new BigDecimal("250"), new BigDecimal("5000"));
         var creator = new ShipmentCreator(customers, shipments, fees, mapper, recorder);
-        service = new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access);
+        service = new ShipmentService(
+                shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access, eventOutbox);
     }
 
     @Nested
@@ -267,12 +271,13 @@ class ShipmentServiceTest {
                 assertThat(response.status()).isEqualTo(to);
                 assertThat(shipment.getStatus()).isEqualTo(to);
                 verify(statusRecorder).record(shipment, from, to, OBSERVATION);
+                verify(eventOutbox).record(shipment, from, to);
             } else {
                 assertThatThrownBy(() -> service.changeStatus(SHIPMENT_ID, to, OBSERVATION))
                         .isInstanceOf(InvalidStateTransitionException.class);
 
                 assertThat(shipment.getStatus()).isEqualTo(from);
-                verifyNoInteractions(statusRecorder);
+                verifyNoInteractions(statusRecorder, eventOutbox);
             }
         }
 
@@ -288,7 +293,7 @@ class ShipmentServiceTest {
                     .isInstanceOf(CourierNotAssignedException.class);
 
             assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.PENDIENTE);
-            verifyNoInteractions(statusRecorder);
+            verifyNoInteractions(statusRecorder, eventOutbox);
         }
 
         /**
@@ -306,7 +311,7 @@ class ShipmentServiceTest {
                     .isInstanceOf(CourierNotActiveException.class);
 
             assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.PENDIENTE);
-            verifyNoInteractions(statusRecorder);
+            verifyNoInteractions(statusRecorder, eventOutbox);
         }
 
         /**
@@ -323,6 +328,7 @@ class ShipmentServiceTest {
 
             assertThat(response.status()).isEqualTo(ShipmentStatus.EN_RUTA);
             verify(statusRecorder).record(shipment, ShipmentStatus.PENDIENTE, ShipmentStatus.EN_RUTA, null);
+            verify(eventOutbox).record(shipment, ShipmentStatus.PENDIENTE, ShipmentStatus.EN_RUTA);
         }
 
         /**
@@ -340,12 +346,13 @@ class ShipmentServiceTest {
                 assertThat(response.status()).isEqualTo(ShipmentStatus.CANCELADO);
                 verify(statusRecorder).record(shipment, ShipmentStatus.PENDIENTE,
                         ShipmentStatus.CANCELADO, CANCELLATION);
+                verify(eventOutbox).record(shipment, ShipmentStatus.PENDIENTE, ShipmentStatus.CANCELADO);
             } else {
                 assertThatThrownBy(() -> service.cancel(SHIPMENT_ID))
                         .isInstanceOf(ShipmentCannotBeCancelledException.class);
 
                 assertThat(shipment.getStatus()).isEqualTo(status);
-                verifyNoInteractions(statusRecorder);
+                verifyNoInteractions(statusRecorder, eventOutbox);
             }
         }
 
@@ -364,7 +371,7 @@ class ShipmentServiceTest {
             }
 
             assertThat(shipment.getStatus()).isEqualTo(terminal);
-            verifyNoInteractions(statusRecorder);
+            verifyNoInteractions(statusRecorder, eventOutbox);
         }
 
         /**
@@ -381,7 +388,7 @@ class ShipmentServiceTest {
             assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.ENTREGADO);
             verify(shipments, never()).save(any());
             verify(shipments, never()).saveAndFlush(any());
-            verifyNoInteractions(statusRecorder);
+            verifyNoInteractions(statusRecorder, eventOutbox);
         }
 
         /**
@@ -410,7 +417,7 @@ class ShipmentServiceTest {
             assertThatThrownBy(() -> service.changeStatus(SHIPMENT_ID, ShipmentStatus.CANCELADO, null))
                     .isInstanceOf(ResourceNotFoundException.class);
 
-            verifyNoInteractions(statusRecorder);
+            verifyNoInteractions(statusRecorder, eventOutbox);
         }
 
         /**

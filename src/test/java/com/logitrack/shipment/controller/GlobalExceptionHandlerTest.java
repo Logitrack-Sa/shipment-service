@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.logitrack.shipment.exception.AccountNotVerifiedException;
 import com.logitrack.shipment.exception.CourierNotActiveException;
 import com.logitrack.shipment.exception.CourierNotAssignedException;
 import com.logitrack.shipment.exception.DuplicateResourceException;
@@ -211,6 +212,23 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void accountNotVerifiedExceptionDevuelve403ProblemDetail() throws Exception {
+        mvc.perform(get(RUTA + "/cuenta-no-verificada"))
+                .andExpect(status().isForbidden())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://logitrack.com/errors/account-not-verified"))
+                .andExpect(jsonPath("$.title").value("Account Not Verified"))
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.detail").value(
+                        "No puedes solicitar envíos hasta que confirmes tu dirección de correo electrónico."))
+                .andExpect(jsonPath("$.instance").value(RUTA + "/cuenta-no-verificada"))
+                .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_VERIFIED"))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                .andExpect(jsonPath("$.email_verified").value(false));
+    }
+
+    @Test
     void exceptionGenericaDevuelve500SinExponerDetallesInternos() throws Exception {
         mvc.perform(get(RUTA + "/boom"))
                 .andExpect(status().isInternalServerError())
@@ -291,6 +309,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/explorar/optimistic-lock")
         void optimisticLock() {
             throw new ObjectOptimisticLockingFailureException("Shipment", SHIPMENT_ID);
+        }
+
+        @GetMapping("/explorar/cuenta-no-verificada")
+        void cuentaNoVerificada() {
+            throw new AccountNotVerifiedException();
         }
     }
 

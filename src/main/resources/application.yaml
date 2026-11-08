@@ -19,6 +19,27 @@ spring:
   flyway:
     enabled: true
     validate-on-migrate: true
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+      retry:
+        enabled: false
+logitrack:
+  outbox:
+    enabled: ${OUTBOX_ENABLED:true}
+    batch-size: ${OUTBOX_BATCH_SIZE:20}
+    publish-interval-ms: ${OUTBOX_PUBLISH_INTERVAL_MS:1000}
+    send-timeout-ms: ${OUTBOX_SEND_TIMEOUT_MS:5000}
+    confirm-timeout-ms: ${OUTBOX_CONFIRM_TIMEOUT_MS:5000}
+    max-concurrent-sends: ${OUTBOX_MAX_CONCURRENT_SENDS:1}
+    lock-lease-ms: ${OUTBOX_LOCK_LEASE_MS:30000}
+    initial-retry-delay-ms: ${OUTBOX_INITIAL_RETRY_DELAY_MS:2000}
+    retry-multiplier: ${OUTBOX_RETRY_MULTIPLIER:2.0}
+    max-retry-delay-ms: ${OUTBOX_MAX_RETRY_DELAY_MS:300000}
 eureka:
   client:
     enabled: ${EUREKA_CLIENT_ENABLED:false}

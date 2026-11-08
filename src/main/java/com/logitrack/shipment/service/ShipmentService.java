@@ -16,7 +16,6 @@ import com.logitrack.shipment.exception.ShipmentCannotBeCancelledException;
 import com.logitrack.shipment.mapper.ShipmentMapper;
 import com.logitrack.shipment.client.CourierLookup;
 import com.logitrack.shipment.repository.ShipmentRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Pageable;
@@ -25,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 public class ShipmentService {
     private static final int MAX_TRACKING_ATTEMPTS = 5;
     /** Observación por defecto registrada en el historial al cancelar un envío. */
@@ -37,6 +35,26 @@ public class ShipmentService {
     private final CourierLookup couriers;
     private final ShipmentStatusRecorder statusRecorder;
     private final ShipmentAccess access;
+    private final ShipmentStatusEventOutbox eventOutbox;
+
+    public ShipmentService(
+            ShipmentRepository shipments,
+            ShipmentCreator creator,
+            TrackingCodeGenerator trackingCodes,
+            ShipmentMapper mapper,
+            CourierLookup couriers,
+            ShipmentStatusRecorder statusRecorder,
+            ShipmentAccess access,
+            ShipmentStatusEventOutbox eventOutbox) {
+        this.shipments = shipments;
+        this.creator = creator;
+        this.trackingCodes = trackingCodes;
+        this.mapper = mapper;
+        this.couriers = couriers;
+        this.statusRecorder = statusRecorder;
+        this.access = access;
+        this.eventOutbox = eventOutbox;
+    }
 
 
     @Transactional
@@ -125,6 +143,7 @@ public class ShipmentService {
 
         shipment.changeStatusTo(target);
         statusRecorder.record(shipment, from, target, observation);
+        eventOutbox.record(shipment, from, target);
         return mapper.toResponse(shipment);
     }
 

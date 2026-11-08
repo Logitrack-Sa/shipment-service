@@ -2,6 +2,7 @@ package com.logitrack.shipment.security;
 
 import com.logitrack.shipment.entity.Shipment;
 import com.logitrack.shipment.entity.ShipmentStatus;
+import com.logitrack.shipment.exception.AccountNotVerifiedException;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -16,6 +17,7 @@ public class ShipmentAccess {
 
     public void requireCreate(UUID customerId) {
         if (!hasRole("ADMIN") && !(hasRole("CLIENTE") && customerId.equals(link("customerId")))) throw denied();
+        if (!isEmailVerified()) throw new AccountNotVerifiedException();
     }
 
     public void requireRead(Shipment shipment) {
@@ -56,6 +58,15 @@ public class ShipmentAccess {
             Jwt jwt = ((JwtAuthenticationToken) SecurityContextHolder.getContext().getAuthentication()).getToken();
             return UUID.fromString(jwt.getClaimAsString(claim));
         } catch (RuntimeException exception) { return null; }
+    }
+
+    private boolean isEmailVerified() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (!(authentication instanceof JwtAuthenticationToken jwtAuth) || !jwtAuth.isAuthenticated()) {
+            throw denied();
+        }
+        Object claim = jwtAuth.getToken().getClaims().get("email_verified");
+        return Boolean.TRUE.equals(claim);
     }
 
     private static AccessDeniedException denied() { return new AccessDeniedException("Acceso a envío denegado"); }
