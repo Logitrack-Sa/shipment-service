@@ -19,6 +19,11 @@ spring:
   flyway:
     enabled: true
     validate-on-migrate: true
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
 eureka:
   client:
     enabled: ${EUREKA_CLIENT_ENABLED:false}

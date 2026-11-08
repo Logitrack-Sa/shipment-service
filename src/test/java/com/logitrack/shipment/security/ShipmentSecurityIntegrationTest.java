@@ -158,6 +158,24 @@ class ShipmentSecurityIntegrationTest extends JwtTestSupport {
         verifyNoInteractions(couriers);
     }
 
+    @Test void rejectsShipmentCreationWhenEmailIsNotVerifiedWith403ProblemDetail() throws Exception {
+        var request = json.valueToTree(ShipmentFixtures.request());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) request).put("customerId", customerA.getId().toString());
+        String unverifiedToken = "Bearer " + token("cliente-a", Map.of(
+                "customerId", customerA.getId().toString(),
+                "email_verified", false
+        ));
+
+        mvc.perform(post("/api/v1/shipments")
+                        .header("Authorization", unverifiedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_VERIFIED"))
+                .andExpect(jsonPath("$.email_verified").value(false));
+    }
+
     @Test void courierChangesOnlyAssignedShipmentAndCannotCancel() throws Exception {
         String own = "/api/v1/shipments/" + a.getId();
         mvc.perform(patch(own + "/status").header("Authorization", bearer("repartidor-b"))
