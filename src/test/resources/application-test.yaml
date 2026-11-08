@@ -2,6 +2,8 @@ spring:
   cloud:
     config:
       enabled: false
+  cache:
+    type: simple
   datasource:
     url: jdbc:h2:mem:logitrack;MODE=MySQL;DB_CLOSE_DELAY=-1
     username: sa
@@ -20,6 +22,8 @@ spring:
 management:
   health:
     rabbit:
+      enabled: false
+    redis:
       enabled: false
 
 eureka:

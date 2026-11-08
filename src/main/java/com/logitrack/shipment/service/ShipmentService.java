@@ -1,6 +1,7 @@
 package com.logitrack.shipment.service;
 
 import com.logitrack.shipment.config.RabbitMQConfig;
+import com.logitrack.shipment.config.RedisCacheConfig;
 import com.logitrack.shipment.security.ShipmentAccess;
 import com.logitrack.shipment.dto.CreateShipmentRequest;
 import com.logitrack.shipment.dto.ShipmentResponse;
@@ -22,6 +23,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Pageable;
@@ -78,6 +82,10 @@ public class ShipmentService {
 
 
     @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = RedisCacheConfig.SHIPMENT_QUERIES_CACHE, key = "'shipment::tracking::' + #result.trackingCode"),
+        @CacheEvict(value = RedisCacheConfig.SHIPMENT_QUERIES_CACHE, key = "'shipment::id::' + #result.id")
+    })
     public ShipmentResponse assignCourier(UUID shipmentId, UUID courierId) {
         access.requireAdmin();
         Shipment shipment = shipments.findById(shipmentId)
@@ -107,6 +115,10 @@ public class ShipmentService {
      * @throws CourierNotActiveException       si pasa a {@code EN_RUTA} con un repartidor inactivo
      */
     @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = RedisCacheConfig.SHIPMENT_QUERIES_CACHE, key = "'shipment::tracking::' + #result.trackingCode"),
+        @CacheEvict(value = RedisCacheConfig.SHIPMENT_QUERIES_CACHE, key = "'shipment::id::' + #result.id")
+    })
     public ShipmentResponse changeStatus(UUID shipmentId, ShipmentStatus target, String observation) {
         Shipment shipment = findShipment(shipmentId);
         access.requireTransition(shipment, target);
@@ -126,6 +138,10 @@ public class ShipmentService {
      * @throws ShipmentCannotBeCancelledException si el envío no está en estado {@code PENDIENTE}
      */
     @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = RedisCacheConfig.SHIPMENT_QUERIES_CACHE, key = "'shipment::tracking::' + #result.trackingCode"),
+        @CacheEvict(value = RedisCacheConfig.SHIPMENT_QUERIES_CACHE, key = "'shipment::id::' + #result.id")
+    })
     public ShipmentResponse cancel(UUID shipmentId) {
         access.requireAdmin();
         Shipment shipment = findShipment(shipmentId);
@@ -205,6 +221,7 @@ public class ShipmentService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = RedisCacheConfig.SHIPMENT_QUERIES_CACHE, key = "'shipment::id::' + #id")
     public ShipmentResponse findById(UUID id) {
         Shipment shipment = findShipment(id);
         access.requireRead(shipment);
@@ -212,6 +229,7 @@ public class ShipmentService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = RedisCacheConfig.SHIPMENT_QUERIES_CACHE, key = "'shipment::tracking::' + #trackingCode")
     public ShipmentResponse findByTrackingCode(String trackingCode) {
         Shipment shipment = shipments.findByTrackingCode(trackingCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Envío", trackingCode));
