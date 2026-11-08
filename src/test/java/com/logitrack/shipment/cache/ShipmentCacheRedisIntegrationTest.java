@@ -249,4 +249,16 @@ class ShipmentCacheRedisIntegrationTest extends JwtTestSupport {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
     }
+
+    @Test
+    @DisplayName("Degradación Grácil: Si ocurre un error en caché, el handler captura sin propagar error 500")
+    void fallbackGracefullyOnCacheError() {
+        var config = new com.logitrack.shipment.config.RedisCacheConfig();
+        var handler = config.errorHandler();
+        assertThat(handler).isNotNull();
+        handler.handleCacheGetError(new RuntimeException("Redis timeout simulado"), null, "shipment::tracking::LT-TEST");
+        handler.handleCachePutError(new RuntimeException("Redis connection error"), null, "shipment::tracking::LT-TEST", "val");
+        handler.handleCacheEvictError(new RuntimeException("Redis unreachable"), null, "shipment::tracking::LT-TEST");
+        handler.handleCacheClearError(new RuntimeException("Redis error"), null);
+    }
 }

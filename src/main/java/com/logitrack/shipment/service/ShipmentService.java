@@ -30,6 +30,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -196,15 +198,28 @@ public class ShipmentService {
                 target,
                 Instant.now()
         );
-        try {
-            rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.SHIPMENT_EXCHANGE,
-                    RabbitMQConfig.SHIPMENT_STATUS_CHANGED_ROUTING_KEY,
-                    event
-            );
-        } catch (AmqpException exception) {
-            log.warn("No se pudo publicar el evento ShipmentStatusChangedEvent en RabbitMQ para el envío {}: {}",
-                    shipment.getId(), exception.getMessage());
+        Runnable sendEvent = () -> {
+            try {
+                rabbitTemplate.convertAndSend(
+                        RabbitMQConfig.SHIPMENT_EXCHANGE,
+                        RabbitMQConfig.SHIPMENT_STATUS_CHANGED_ROUTING_KEY,
+                        event
+                );
+            } catch (AmqpException exception) {
+                log.warn("No se pudo publicar el evento ShipmentStatusChangedEvent en RabbitMQ para el envío {}: {}",
+                        shipment.getId(), exception.getMessage());
+            }
+        };
+
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sendEvent.run();
+                }
+            });
+        } else {
+            sendEvent.run();
         }
     }
 
