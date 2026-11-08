@@ -1,5 +1,8 @@
 package com.logitrack.shipment.security;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authorization.AuthorizationDecision;
+
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,7 +34,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityErrors errors) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityErrors errors,
+            @Value("${logitrack.metrics.anonymous-enabled:false}") boolean anonymousMetrics) throws Exception {
         var authorities = new JwtGrantedAuthoritiesConverter();
         authorities.setAuthoritiesClaimName("roles");
         authorities.setAuthorityPrefix("ROLE_");
@@ -41,6 +45,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(cache -> cache.disable())
                 .authorizeHttpRequests(auth -> auth
+                    .requestMatchers(HttpMethod.GET, "/actuator/prometheus")
+                    .access((authentication, context) -> new AuthorizationDecision(anonymousMetrics))
                     .requestMatchers(HttpMethod.GET, "/", "/docs/**", "/swagger-ui.html", "/swagger-ui/**",
                             "/v3/api-docs", "/v3/api-docs/**", "/actuator/health", "/actuator/health/**").permitAll()
                     .requestMatchers("/api/v1/customers", "/api/v1/customers/**").hasRole("ADMIN")

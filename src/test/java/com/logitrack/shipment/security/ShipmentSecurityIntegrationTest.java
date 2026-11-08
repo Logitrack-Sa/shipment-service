@@ -59,6 +59,7 @@ class ShipmentSecurityIntegrationTest extends JwtTestSupport {
     }
 
     @Test void requiresTokenAndReturnsStructured401() throws Exception {
+        mvc.perform(get("/actuator/prometheus")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/shipments")).andExpect(status().isUnauthorized())
                 .andExpect(header().string("WWW-Authenticate", "Bearer"))
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
