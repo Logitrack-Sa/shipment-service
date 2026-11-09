@@ -50,6 +50,8 @@ class CourierMigrationTest {
                 while (rs.next()) {
                     var row = new ArrayList<String>();
                     for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++) {
+                        // La identidad agregada en V3 no existía en la instantánea de V1.
+                        if (rs.getMetaData().getColumnName(i).equalsIgnoreCase("owner_user_id")) continue;
                         Object value = rs.getObject(i);
                         row.add(value instanceof byte[] bytes ? HexFormat.of().formatHex(bytes) : String.valueOf(value));
                     }
