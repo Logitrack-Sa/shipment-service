@@ -32,7 +32,7 @@ public class CustomerProvisioningService {
         String email = caller.getClaimAsString("email");
         if (name == null || name.isBlank() || name.length() > 200
                 || email == null || email.isBlank() || email.length() > 254) {
-            throw new AccessDeniedException("La identidad no contiene un perfil v·lido.");
+            throw new AccessDeniedException("La identidad no contiene un perfil v√°lido.");
         }
         email = email.strip().toLowerCase(Locale.ROOT);
         // Un email coincidente no autoriza apropiarse de un cliente preexistente.
