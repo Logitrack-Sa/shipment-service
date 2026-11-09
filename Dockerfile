@@ -11,4 +11,4 @@ WORKDIR /app
 COPY --from=build --chown=10001:10001 /build/target/*.jar app.jar
 USER 10001:10001
 EXPOSE 8081
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "-XX:+UseSerialGC", "-Xms96m", "-Xmx224m", "-XX:MaxMetaspaceSize=128m", "-jar", "/app/app.jar"]
