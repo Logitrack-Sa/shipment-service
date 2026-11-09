@@ -47,6 +47,24 @@ class ShipmentSecurityIntegrationTest extends JwtTestSupport {
         history.saveAndFlush(new ShipmentStatusHistory(a, null, ShipmentStatus.PENDIENTE, Instant.now(), "Alta"));
     }
 
+    @Test void provisionsSignedIdentityOnceAndRejectsNormalTokens() throws Exception {
+        String uri = "/api/v1/customers/provision";
+        mvc.perform(post(uri)).andExpect(status().isUnauthorized());
+        mvc.perform(post(uri).header("Authorization", bearer("cliente-a"))).andExpect(status().isForbidden());
+        mvc.perform(post(uri).header("Authorization", bearer("repartidor-a"))).andExpect(status().isForbidden());
+        var claims = Map.<String, Object>of("purpose", "customer-provision", "name", "Nuevo cliente", "email", "nuevo@example.test");
+        String credential = "Bearer " + token("cliente-a", claims);
+        var first = mvc.perform(post(uri).header("Authorization", credential)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var repeated = mvc.perform(post(uri).header("Authorization", credential)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(json.readTree(repeated).get("id")).isEqualTo(json.readTree(first).get("id"));
+        assertThat(customers.count()).isEqualTo(3);
+        var unverified = new HashMap<String, Object>(claims); unverified.put("email_verified", false);
+        mvc.perform(post(uri).header("Authorization", "Bearer " + token("cliente-a", unverified)))
+                .andExpect(status().isForbidden());
+    }
+
     Shipment seed(Customer customer, String tracking, UUID courierId) {
         var entity = new ShipmentMapper().toEntity(ShipmentFixtures.request(), customer, tracking, new BigDecimal("2200"));
         entity.assignCourier(courierId);
