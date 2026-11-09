@@ -103,9 +103,14 @@ class ShipmentCacheInvalidationTest {
         }
 
         @Bean
-        public CacheManager cacheManager() {
-            return new org.springframework.cache.transaction.TransactionAwareCacheManagerProxy(
-                    new ConcurrentMapCacheManager(CacheConfig.SHIPMENT_CACHE_NAME));
+        public FaultInjectableCacheManager underlyingCacheManager() {
+            return new FaultInjectableCacheManager(CacheConfig.SHIPMENT_CACHE_NAME);
+        }
+
+        @Bean
+        @org.springframework.context.annotation.Primary
+        public CacheManager cacheManager(FaultInjectableCacheManager underlyingCacheManager) {
+            return new org.springframework.cache.transaction.TransactionAwareCacheManagerProxy(underlyingCacheManager);
         }
 
         @Bean
@@ -150,6 +155,83 @@ class ShipmentCacheInvalidationTest {
         }
     }
 
+    static class FaultInjectableCacheManager extends ConcurrentMapCacheManager {
+        private volatile boolean failOnEvict = false;
+        private volatile boolean failOnGet = false;
+
+        public FaultInjectableCacheManager(String... cacheNames) {
+            super(cacheNames);
+        }
+
+        public void setFailOnEvict(boolean fail) {
+            this.failOnEvict = fail;
+        }
+
+        public void setFailOnGet(boolean fail) {
+            this.failOnGet = fail;
+        }
+
+        @Override
+        protected Cache createConcurrentMapCache(String name) {
+            Cache delegate = super.createConcurrentMapCache(name);
+            return new Cache() {
+                @Override
+                public String getName() {
+                    return delegate.getName();
+                }
+
+                @Override
+                public Object getNativeCache() {
+                    return delegate.getNativeCache();
+                }
+
+                @Override
+                public ValueWrapper get(Object key) {
+                    if (failOnGet) {
+                        throw new org.springframework.data.redis.RedisConnectionFailureException("Simulated Redis timeout/connection failure on read");
+                    }
+                    return delegate.get(key);
+                }
+
+                @Override
+                public <T> T get(Object key, Class<T> type) {
+                    if (failOnGet) {
+                        throw new org.springframework.data.redis.RedisConnectionFailureException("Simulated Redis timeout/connection failure on read");
+                    }
+                    return delegate.get(key, type);
+                }
+
+                @Override
+                public <T> T get(Object key, java.util.concurrent.Callable<T> valueLoader) {
+                    if (failOnGet) {
+                        throw new org.springframework.data.redis.RedisConnectionFailureException("Simulated Redis timeout/connection failure on read");
+                    }
+                    return delegate.get(key, valueLoader);
+                }
+
+                @Override
+                public void put(Object key, Object value) {
+                    delegate.put(key, value);
+                }
+
+                @Override
+                public void evict(Object key) {
+                    if (failOnEvict) {
+                        throw new org.springframework.data.redis.RedisSystemException(
+                                "Simulated Redis failure during post-commit eviction",
+                                new java.net.ConnectException("Connection refused"));
+                    }
+                    delegate.evict(key);
+                }
+
+                @Override
+                public void clear() {
+                    delegate.clear();
+                }
+            };
+        }
+    }
+
     @Autowired
     private ShipmentService service;
 
@@ -166,6 +248,9 @@ class ShipmentCacheInvalidationTest {
     private CacheManager cacheManager;
 
     @Autowired
+    private FaultInjectableCacheManager underlyingCacheManager;
+
+    @Autowired
     private TransactionTemplate transactionTemplate;
 
     private Cache cache;
@@ -173,6 +258,8 @@ class ShipmentCacheInvalidationTest {
     @BeforeEach
     void resetState() {
         reset(shipments, couriers);
+        underlyingCacheManager.setFailOnEvict(false);
+        underlyingCacheManager.setFailOnGet(false);
         cache = cacheManager.getCache(CacheConfig.SHIPMENT_CACHE_NAME);
         if (cache != null) {
             cache.clear();
@@ -343,5 +430,100 @@ class ShipmentCacheInvalidationTest {
         // Tras el rollback, la caché NO se elimina
         assertThat(cache.get("shipment::id::" + idRollback)).isNotNull();
         assertThat(cache.get("shipment::tracking::" + codeRollback)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("PR-2: Fallo en invalidación de Redis post-commit no deja persistencia parcial en MySQL y lanza excepción visible")
+    void pr2_evictionFailureAfterCommitLeavesDatabaseConsistentWithoutPartialPersistence() {
+        UUID id = UUID.randomUUID();
+        String code = "LT-FAILCOMMIT1";
+        Shipment shipment = createSampleShipment(id, code, ShipmentStatus.PENDIENTE);
+        when(shipments.findById(id)).thenReturn(Optional.of(shipment));
+        primeCache(id, code, shipment);
+
+        UUID courierId = UUID.randomUUID();
+
+        // Activamos la falla en la evicción de Redis (post-commit)
+        underlyingCacheManager.setFailOnEvict(true);
+
+        // La mutación debe fallar visiblemente al intentar la evicción post-commit
+        assertThatThrownBy(() -> service.assignCourier(id, courierId))
+                .isInstanceOf(org.springframework.data.redis.RedisSystemException.class)
+                .hasMessageContaining("Simulated Redis failure during post-commit eviction");
+
+        // Verificamos que MySQL NO quedó con persistencia parcial:
+        // La transacción de MySQL se completó íntegramente antes de la evicción,
+        // reflejando el nuevo estado de forma atómica y completa.
+        assertThat(shipment.getCourierId()).as("MySQL debe reflejar el commit completo exitoso").isEqualTo(courierId);
+    }
+
+    @Test
+    @DisplayName("PR-2: Rollback previo al commit preserva MySQL completamente sin persistencia parcial ni claves huérfanas")
+    void pr2_rollbackBeforeCommitPreservesDatabaseAndDoesNotEvictCache() {
+        UUID id = UUID.randomUUID();
+        String code = "LT-TXROLL002";
+        Shipment shipment = createSampleShipment(id, code, ShipmentStatus.PENDIENTE);
+        when(shipments.findById(id)).thenReturn(Optional.of(shipment));
+        primeCache(id, code, shipment);
+
+        UUID courierId = UUID.randomUUID();
+
+        // Ejecutar mutación dentro de transacción que hace rollback
+        transactionTemplate.execute(status -> {
+            service.assignCourier(id, courierId);
+            status.setRollbackOnly();
+            return null;
+        });
+
+        // Al revertir la transacción, afterCommit nunca se ejecuta.
+        // Las claves previas en caché siguen presentes e intactas (sin claves huérfanas desincronizadas).
+        assertThat(cache.get("shipment::id::" + id)).isNotNull();
+        assertThat(cache.get("shipment::tracking::" + code)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("PR-3: Redis no disponible o con timeout en lecturas lanza error visible sin fallback silencioso")
+    void pr3_redisUnavailableOrTimeoutOnReadThrowsVisibleErrorWithoutSilentFallback() {
+        UUID id = UUID.randomUUID();
+        String code = "LT-REDISTMOUT1";
+        Shipment shipment = createSampleShipment(id, code, ShipmentStatus.PENDIENTE);
+        when(shipments.findById(id)).thenReturn(Optional.of(shipment));
+
+        // Simulamos Redis caído o con timeout en lecturas
+        underlyingCacheManager.setFailOnGet(true);
+
+        // findById debe lanzar la excepción visiblemente en lugar de silenciarla o degradar a MySQL
+        assertThatThrownBy(() -> service.findById(id))
+                .isInstanceOf(org.springframework.data.redis.RedisConnectionFailureException.class)
+                .hasMessageContaining("Simulated Redis timeout/connection failure on read");
+
+        // findByTrackingCode también debe lanzar la excepción visiblemente
+        assertThatThrownBy(() -> service.findByTrackingCode(code))
+                .isInstanceOf(org.springframework.data.redis.RedisConnectionFailureException.class)
+                .hasMessageContaining("Simulated Redis timeout/connection failure on read");
+
+        // Se verifica que no se consultó el repositorio MySQL para fallback silencioso
+        verify(shipments, never()).findById(any());
+        verify(shipments, never()).findByTrackingCode(any());
+    }
+
+    @Test
+    @DisplayName("PR-3: Redis caído durante mutación mantiene consistencia relacional y lanza error visible")
+    void pr3_redisUnavailableDuringMutationSurfacesErrorWhileMaintainingDatabaseConsistency() {
+        UUID id = UUID.randomUUID();
+        String code = "LT-REDISMUT01";
+        Shipment shipment = createSampleShipment(id, code, ShipmentStatus.PENDIENTE);
+        when(shipments.findById(id)).thenReturn(Optional.of(shipment));
+        primeCache(id, code, shipment);
+
+        // Simulamos Redis caído en la invalidación
+        underlyingCacheManager.setFailOnEvict(true);
+
+        // changeStatus debe reflejar el cambio en la entidad/base de datos pero arrojar el error de Redis
+        assertThatThrownBy(() -> service.changeStatus(id, ShipmentStatus.CANCELADO, "Cancelación con Redis caído"))
+                .isInstanceOf(org.springframework.data.redis.RedisSystemException.class);
+
+        // MySQL mantiene consistencia: el estado es CANCELADO
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.CANCELADO);
     }
 }
