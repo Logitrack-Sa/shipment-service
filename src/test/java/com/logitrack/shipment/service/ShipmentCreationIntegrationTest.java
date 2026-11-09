@@ -48,7 +48,10 @@ class ShipmentCreationIntegrationTest extends com.logitrack.shipment.support.Jwt
     @BeforeEach
     void clearDatabase() {
         var jwt = org.springframework.security.oauth2.jwt.Jwt.withTokenValue("unit-admin").header("alg", "RS256")
-                .subject("00000000-0000-0000-0000-000000000001").claim("roles", java.util.List.of("ADMIN")).build();
+                .subject("00000000-0000-0000-0000-000000000001")
+                .claim("roles", java.util.List.of("ADMIN"))
+                .claim("email_verified", true)
+                .build();
         org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
                 new org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken(jwt,
                 java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))));

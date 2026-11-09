@@ -7,6 +7,7 @@ import com.logitrack.shipment.dto.ErrorResponse;
 import com.logitrack.shipment.dto.ShipmentResponse;
 import com.logitrack.shipment.dto.PageResponse;
 import com.logitrack.shipment.entity.ShipmentStatus;
+import com.logitrack.shipment.security.ShipmentAccess;
 import com.logitrack.shipment.service.ShipmentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -19,7 +20,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -30,10 +31,20 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/shipments")
-@RequiredArgsConstructor
 @Tag(name = "Shipments", description = "Registro, consulta y cambio de estado de envíos")
 public class ShipmentController {
     private final ShipmentService service;
+    private final ShipmentAccess access;
+
+    @Autowired
+    public ShipmentController(ShipmentService service, @Autowired(required = false) ShipmentAccess access) {
+        this.service = service;
+        this.access = access;
+    }
+
+    public ShipmentController(ShipmentService service) {
+        this(service, null);
+    }
 
     @GetMapping("/{id}")
     @Operation(summary = "Consultar un envío por su UUID")
@@ -41,7 +52,11 @@ public class ShipmentController {
     @ApiResponse(responseCode = "400", description = "UUID inválido")
     @ApiResponse(responseCode = "404", description = "Envío inexistente")
     public ShipmentResponse findById(@PathVariable UUID id) {
-        return service.findById(id);
+        ShipmentResponse response = service.findById(id);
+        if (access != null) {
+            access.requireRead(response);
+        }
+        return response;
     }
 
     @GetMapping("/tracking/{trackingCode}")
@@ -49,7 +64,11 @@ public class ShipmentController {
     @ApiResponse(responseCode = "200", description = "Envío encontrado")
     @ApiResponse(responseCode = "404", description = "Código de seguimiento inexistente")
     public ShipmentResponse findByTrackingCode(@PathVariable String trackingCode) {
-        return service.findByTrackingCode(trackingCode);
+        ShipmentResponse response = service.findByTrackingCode(trackingCode);
+        if (access != null) {
+            access.requireRead(response);
+        }
+        return response;
     }
 
     @GetMapping

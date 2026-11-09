@@ -1,6 +1,7 @@
 package com.logitrack.shipment.controller;
 
 import org.springframework.security.access.AccessDeniedException;
+import com.logitrack.shipment.exception.AccountNotVerifiedException;
 import com.logitrack.shipment.exception.RemoteCourierException;
 import com.logitrack.shipment.dto.ErrorResponse;
 import com.logitrack.shipment.dto.ErrorResponse.FieldViolation;
@@ -10,10 +11,13 @@ import com.logitrack.shipment.exception.InvalidStateTransitionException;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import java.net.URI;
+import java.time.Instant;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -126,6 +130,19 @@ public class GlobalExceptionHandler {
                 exception.code(), exception.status().value(), request.getMethod(),
                 request.getRequestURI(), exception.getMessage());
         return error(exception.status(), exception.code(), exception.getMessage(), request, List.of());
+    }
+
+    @ExceptionHandler(AccountNotVerifiedException.class)
+    public ResponseEntity<ProblemDetail> handleAccountNotVerified(
+            AccountNotVerifiedException exception, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, exception.getMessage());
+        problem.setType(URI.create("https://logitrack.com/errors/account-not-verified"));
+        problem.setTitle("Account Not Verified");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", exception.code());
+        problem.setProperty("timestamp", Instant.now());
+        problem.setProperty("email_verified", false);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

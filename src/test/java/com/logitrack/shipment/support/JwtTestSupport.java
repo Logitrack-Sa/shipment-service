@@ -62,10 +62,13 @@ public abstract class JwtTestSupport {
             JsonNode identity = IDENTITIES.get(name);
             var claims = new JWTClaimsSet.Builder().subject(identity.get("sub").asText()).issuer(ISSUER)
                     .audience(List.of(AUDIENCE, "courier-service")).issueTime(Date.from(Instant.now()))
-                    .expirationTime(Date.from(Instant.now().plusSeconds(600)));
+                    .expirationTime(Date.from(Instant.now().plusSeconds(600)))
+                    .claim("email_verified", true);
             identity.fields().forEachRemaining(entry -> {
                 if (entry.getKey().equals("roles")) {
                     claims.claim("roles", new ObjectMapper().convertValue(entry.getValue(), List.class));
+                } else if (entry.getValue().isBoolean()) {
+                    claims.claim(entry.getKey(), entry.getValue().booleanValue());
                 } else if (!entry.getKey().equals("sub")) claims.claim(entry.getKey(), entry.getValue().asText());
             });
             overrides.forEach(claims::claim);
