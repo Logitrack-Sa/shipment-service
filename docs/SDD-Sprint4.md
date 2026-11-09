@@ -234,27 +234,29 @@ El servicio `config-server` provee la configuración en tiempo de arranque leyen
 Para que el ecosistema completo (13 contenedores en total) se ejecute sin interrupciones, sin saturar la swap ni activar el *OOM-Killer* en un entorno host de **8 GB de RAM**, se define una rigurosa sintonización:
 
 #### Configuración de la JVM para Servicios Spring Boot
-En cada contenedor Java 21 se inyecta la variable de entorno:
+En cada contenedor Java 25 se inyecta la variable de entorno:
 ```bash
 JAVA_TOOL_OPTIONS: "-XX:+UseSerialGC -Xms96m -Xmx224m -XX:MaxMetaspaceSize=128m"
 ```
 * **`-XX:+UseSerialGC`**: Elimina el sobrecosto de hilos de recolección concurrentes de G1GC, optimizando el consumo nativo de memoria en contenedores pequeños.
 * **`-Xmx224m`**: Asegura un tope estricto de heap por microservicio.
 
+> **Nota de decisión arquitectónica:** Los microservicios Java del proyecto se estandarizan en Java 25 (incluido `chatbot-service`), alineando su compilación Maven, CI y runtime en contenedores Temurin. Las cifras de consumo de la tabla representan estimaciones de planificación de capacidad y presupuestos operativos pendientes de medición empírica en Java 25.
+
 #### Presupuesto Detallado de Memoria (Capacity Planning en Docker Compose)
 
-| Contenedor / Servicio | Tecnología Base | Optimización de Memoria | Límite Docker (`mem_limit`) | Consumo Real Típico |
+| Contenedor / Servicio | Tecnología Base | Optimización de Memoria | Límite Docker (`mem_limit`) | Consumo Planificado / Estimado |
 | :--- | :--- | :--- | :--- | :--- |
 | `logitrack-mysql` | Binario C++ | `innodb_buffer_pool_size=128M` | `384 MB` | ~250 MB |
 | `logitrack-redis` | C (redis:7-alpine) | `maxmemory 96mb`, `maxmemory-policy volatile-lru` | `128 MB` | ~40 MB |
 | `logitrack-rabbitmq` | Erlang / Alpine | Erlang VM footprint reducido | `256 MB` | ~120 MB |
-| `logitrack-config-server` | Java 21 / Spring | `-Xms64m -Xmx192m -XX:+UseSerialGC` | `320 MB` | ~200 MB |
-| `logitrack-eureka-server` | Java 21 / Spring | `-Xms64m -Xmx192m -XX:+UseSerialGC` | `320 MB` | ~200 MB |
-| `logitrack-api-gateway` | Java 21 / Netty | `-Xms96m -Xmx224m -XX:+UseSerialGC` | `350 MB` | ~230 MB |
-| `logitrack-security-service` | Java 21 / Tomcat | `-Xms96m -Xmx224m -XX:+UseSerialGC` | `350 MB` | ~240 MB |
-| `logitrack-shipment-service` | Java 21 / Tomcat | `-Xms96m -Xmx224m -XX:+UseSerialGC` | `350 MB` | ~250 MB |
-| `logitrack-courier-service` | Java 21 / Tomcat | `-Xms96m -Xmx224m -XX:+UseSerialGC` | `350 MB` | ~240 MB |
-| `logitrack-chatbot-service` | Java 21 / Tomcat | `-Xms96m -Xmx224m -XX:+UseSerialGC` | `350 MB` | ~240 MB |
+| `logitrack-config-server` | Java 25 / Spring | `-Xms64m -Xmx192m -XX:+UseSerialGC` | `320 MB` | ~200 MB |
+| `logitrack-eureka-server` | Java 25 / Spring | `-Xms64m -Xmx192m -XX:+UseSerialGC` | `320 MB` | ~200 MB |
+| `logitrack-api-gateway` | Java 25 / Netty | `-Xms96m -Xmx224m -XX:+UseSerialGC` | `350 MB` | ~230 MB |
+| `logitrack-security-service` | Java 25 / Tomcat | `-Xms96m -Xmx224m -XX:+UseSerialGC` | `350 MB` | ~240 MB |
+| `logitrack-shipment-service` | Java 25 / Tomcat | `-Xms96m -Xmx224m -XX:+UseSerialGC` | `350 MB` | ~250 MB |
+| `logitrack-courier-service` | Java 25 / Tomcat | `-Xms96m -Xmx224m -XX:+UseSerialGC` | `350 MB` | ~240 MB |
+| `logitrack-chatbot-service` | Java 25 / Tomcat | `-Xms96m -Xmx224m -XX:+UseSerialGC` | `350 MB` | ~240 MB |
 | `logitrack-prometheus` | Go | `storage.tsdb.retention.time=2d` | `192 MB` | ~90 MB |
 | `logitrack-grafana` | Go / Node | Desactivación de plugins no esenciales | `192 MB` | ~100 MB |
 | `logitrack-frontend` | Node.js Standalone | `NODE_OPTIONS=--max-old-space-size=256` | `320 MB` | ~160 MB |
