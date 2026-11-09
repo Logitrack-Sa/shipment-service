@@ -1,5 +1,6 @@
 package com.logitrack.shipment.service;
 
+import com.logitrack.shipment.cache.CourierAvailabilityCacheService;
 import com.logitrack.shipment.client.CourierLookup;
 import com.logitrack.shipment.entity.Shipment;
 import com.logitrack.shipment.exception.CourierNotActiveException;
@@ -25,12 +26,13 @@ class AssignCourierTest {
     @Mock ShipmentCreator creator;
     @Mock TrackingCodeGenerator codes;
     @Mock ShipmentStatusRecorder history;
+    @Mock CourierAvailabilityCacheService courierCache;
     ShipmentService service;
     Shipment shipment;
     UUID courierId = UUID.randomUUID();
 
     @BeforeEach void setup() {
-        service = new ShipmentService(shipments, creator, codes, new ShipmentMapper(), couriers, history, access);
+        service = new ShipmentService(shipments, creator, codes, new ShipmentMapper(), couriers, history, access, courierCache);
         shipment = ShipmentEntities.shipment();
         when(shipments.findById(shipment.getId())).thenReturn(Optional.of(shipment));
     }

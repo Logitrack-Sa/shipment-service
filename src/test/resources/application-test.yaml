@@ -11,6 +11,10 @@ spring:
       ddl-auto: create-drop
   flyway:
     enabled: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 eureka:
   client:
@@ -25,3 +29,7 @@ logitrack:
     service-id: courier-service
     connect-timeout: 200ms
     read-timeout: 300ms
+  cache:
+    couriers-available:
+      ttl-seconds: 300
+      key-prefix: "couriers::available"

@@ -19,6 +19,10 @@ spring:
   flyway:
     enabled: true
     validate-on-migrate: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 eureka:
   client:
     enabled: ${EUREKA_CLIENT_ENABLED:false}
@@ -29,3 +33,8 @@ eureka:
 management:
   endpoints.web.exposure.include: health,info
   endpoint.health.show-details: never
+logitrack:
+  cache:
+    couriers-available:
+      ttl-seconds: 300
+      key-prefix: "couriers::available"

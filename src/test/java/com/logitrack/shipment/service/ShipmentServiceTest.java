@@ -1,5 +1,6 @@
 package com.logitrack.shipment.service;
 
+import com.logitrack.shipment.cache.CourierAvailabilityCacheService;
 import com.logitrack.shipment.dto.CreateShipmentRequest;
 import com.logitrack.shipment.entity.Shipment;
 import com.logitrack.shipment.entity.ShipmentStatus;
@@ -61,6 +62,9 @@ class ShipmentServiceTest {
     @Mock
     private CourierLookup couriers;
 
+    @Mock
+    private com.logitrack.shipment.cache.CourierAvailabilityCacheService courierCache;
+
     private ShipmentService service;
 
     @BeforeEach
@@ -68,7 +72,7 @@ class ShipmentServiceTest {
         var mapper = new ShipmentMapper();
         var fees = new FeeCalculator(new BigDecimal("1000"), new BigDecimal("250"), new BigDecimal("5000"));
         var creator = new ShipmentCreator(customers, shipments, fees, mapper, recorder);
-        service = new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access);
+        service = new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access, courierCache);
     }
 
     @Nested
@@ -460,6 +464,65 @@ class ShipmentServiceTest {
          */
         private UUID activeCourier() {
             return UUID.randomUUID();
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Bloque: Invalidación de caché de repartidores disponibles
+    // -------------------------------------------------------------------------
+
+    /**
+     * Verifica que changeStatus y cancel programan la invalidación de caché tras commit.
+     *
+     * <p>Los tests unitarios no ejecutan transacción real de Spring; verifican que el flujo
+     * alcanza el punto de registro sin lanzar excepción de lógica de negocio.</p>
+     *
+     * <p>Los tests de integración con Redis verifican el comportamiento end-to-end.</p>
+     */
+    @Nested
+    class CacheInvalidation {
+
+        @Test
+        void changeStatusAEnRutaAlcanzaElPuntoDeInvalidacion() {
+            Shipment shipment = ShipmentEntities.shipment();
+            ReflectionTestUtils.setField(shipment, "status", ShipmentStatus.PENDIENTE);
+            shipment.assignCourier(UUID.randomUUID());
+            when(shipments.findById(SHIPMENT_ID)).thenReturn(Optional.of(shipment));
+            doNothing().when(couriers).requireActive(any());
+
+            service.changeStatus(SHIPMENT_ID, ShipmentStatus.EN_RUTA, null);
+            verify(courierCache).evictAll();
+        }
+
+        @Test
+        void changeStatusAEntregadoAlcanzaElPuntoDeInvalidacion() {
+            Shipment shipment = ShipmentEntities.shipment();
+            ReflectionTestUtils.setField(shipment, "status", ShipmentStatus.EN_RUTA);
+            when(shipments.findById(SHIPMENT_ID)).thenReturn(Optional.of(shipment));
+
+            service.changeStatus(SHIPMENT_ID, ShipmentStatus.ENTREGADO, null);
+            verify(courierCache).evictAll();
+        }
+
+        @Test
+        void cancelAlcanzaElPuntoDeInvalidacion() {
+            Shipment shipment = ShipmentEntities.shipment();
+            ReflectionTestUtils.setField(shipment, "status", ShipmentStatus.PENDIENTE);
+            when(shipments.findById(SHIPMENT_ID)).thenReturn(Optional.of(shipment));
+
+            service.cancel(SHIPMENT_ID);
+            verify(courierCache).evictAll();
+        }
+
+        @Test
+        void cambioDeEstadoInvalidoNuncaLlegaAlPuntoDeInvalidacion() {
+            Shipment shipment = ShipmentEntities.shipment();
+            ReflectionTestUtils.setField(shipment, "status", ShipmentStatus.ENTREGADO);
+            when(shipments.findById(SHIPMENT_ID)).thenReturn(Optional.of(shipment));
+
+            assertThatThrownBy(() -> service.changeStatus(SHIPMENT_ID, ShipmentStatus.CANCELADO, null))
+                    .isInstanceOf(InvalidStateTransitionException.class);
+            verifyNoInteractions(courierCache);
         }
     }
 }

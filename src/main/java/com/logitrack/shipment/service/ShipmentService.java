@@ -1,5 +1,6 @@
 package com.logitrack.shipment.service;
 
+import com.logitrack.shipment.cache.CourierAvailabilityCacheService;
 import com.logitrack.shipment.security.ShipmentAccess;
 import com.logitrack.shipment.dto.CreateShipmentRequest;
 import com.logitrack.shipment.dto.ShipmentResponse;
@@ -21,6 +22,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.UUID;
 
@@ -37,6 +40,7 @@ public class ShipmentService {
     private final CourierLookup couriers;
     private final ShipmentStatusRecorder statusRecorder;
     private final ShipmentAccess access;
+    private final CourierAvailabilityCacheService courierCache;
 
 
     @Transactional
@@ -49,6 +53,7 @@ public class ShipmentService {
             throw new BusinessRuleException("Solo se puede asignar un repartidor a un envío pendiente");
         }
         shipment.assignCourier(courierId);
+        scheduleEvictCourierCache();
         return mapper.toResponse(shipment);
     }
 
@@ -58,6 +63,11 @@ public class ShipmentService {
      * <p>Valida las reglas de repartidor cuando el destino es {@link ShipmentStatus#EN_RUTA}
      * (debe existir un repartidor asignado y estar activo) y registra el cambio en el
      * historial de estados mediante {@link ShipmentStatusRecorder}.</p>
+     *
+     * <p>Tras un commit exitoso en transiciones que liberan u ocupan un repartidor
+     * ({@code EN_RUTA}, {@code ENTREGADO}, {@code CANCELADO}), se invalida la caché de
+     * disponibilidad de repartidores usando {@code afterCommit}, garantizando que la
+     * invalidación solo ocurra si la transacción fue persistida correctamente.</p>
      *
      * @param shipmentId  identificador del envío a modificar
      * @param target      estado destino solicitado
@@ -72,7 +82,11 @@ public class ShipmentService {
     public ShipmentResponse changeStatus(UUID shipmentId, ShipmentStatus target, String observation) {
         Shipment shipment = findShipment(shipmentId);
         access.requireTransition(shipment, target);
-        return transition(shipment, target, observation);
+        ShipmentResponse response = transition(shipment, target, observation);
+        if (affectsCourierAvailability(target)) {
+            scheduleEvictCourierCache();
+        }
+        return response;
     }
 
     /**
@@ -81,6 +95,9 @@ public class ShipmentService {
      * <p>Solo se permite cancelar envíos en estado {@link ShipmentStatus#PENDIENTE}. La
      * cancelación no elimina el envío, conserva su repartidor asignado (si lo tuviera) y
      * registra el cambio a {@link ShipmentStatus#CANCELADO} en el historial.</p>
+     *
+     * <p>Si la cancelación es exitosa y la transacción se confirma, se invalida la caché de
+     * disponibilidad de repartidores.</p>
      *
      * @param shipmentId identificador del envío a cancelar
      * @return el envío cancelado
@@ -94,7 +111,9 @@ public class ShipmentService {
         if (shipment.getStatus() != ShipmentStatus.PENDIENTE) {
             throw new ShipmentCannotBeCancelledException(shipmentId, shipment.getStatus().name());
         }
-        return transition(shipment, ShipmentStatus.CANCELADO, CANCELLATION_OBSERVATION);
+        ShipmentResponse response = transition(shipment, ShipmentStatus.CANCELADO, CANCELLATION_OBSERVATION);
+        scheduleEvictCourierCache();
+        return response;
     }
 
     /**
@@ -126,6 +145,41 @@ public class ShipmentService {
         shipment.changeStatusTo(target);
         statusRecorder.record(shipment, from, target, observation);
         return mapper.toResponse(shipment);
+    }
+
+    /**
+     * Registra una sincronización transaccional para invalidar la caché de repartidores
+     * <strong>solo si la transacción hace commit exitosamente</strong>.
+     *
+     * <p>Usando {@code afterCommit} se garantiza consistencia estricta: si la transacción
+     * falla o se revierte, la caché <em>no</em> se invalida. Si no hay sincronización activa
+     * (por ejemplo, en llamadas directas o tests unitarios fuera de transacción de Spring),
+     * invalida directamente.</p>
+     */
+    private void scheduleEvictCourierCache() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    courierCache.evictAll();
+                }
+            });
+        } else {
+            courierCache.evictAll();
+        }
+    }
+
+    /**
+     * Determina si un estado destino afecta la disponibilidad de repartidores
+     * (es decir, ocupa o libera un repartidor).
+     *
+     * @param target estado destino
+     * @return {@code true} si el cambio de estado altera la disponibilidad del repartidor
+     */
+    private static boolean affectsCourierAvailability(ShipmentStatus target) {
+        return target == ShipmentStatus.EN_RUTA
+                || target == ShipmentStatus.ENTREGADO
+                || target == ShipmentStatus.CANCELADO;
     }
 
     /**
