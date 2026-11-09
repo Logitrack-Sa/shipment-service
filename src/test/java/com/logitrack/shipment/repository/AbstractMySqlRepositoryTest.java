@@ -22,7 +22,7 @@ import org.testcontainers.containers.MySQLContainer;
 @ActiveProfiles("test")
 public abstract class AbstractMySqlRepositoryTest {
 
-    protected static final MySQLContainer<?> MYSQL =
+    public static final MySQLContainer<?> MYSQL =
         new MySQLContainer<>("mysql:8.4")
             .withStartupTimeoutSeconds(300)
             // Datos descartables de prueba: evita escrituras de inicializacion en HDD.

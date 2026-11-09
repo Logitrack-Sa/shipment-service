@@ -1,4 +1,6 @@
 spring:
+  cache:
+    type: none
   cloud:
     config:
       enabled: false
@@ -15,6 +17,11 @@ spring:
 eureka:
   client:
     enabled: false
+
+management:
+  health:
+    redis:
+      enabled: false
 
 logitrack:
   fee:

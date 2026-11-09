@@ -30,7 +30,9 @@ class AssignCourierTest {
     UUID courierId = UUID.randomUUID();
 
     @BeforeEach void setup() {
-        service = new ShipmentService(shipments, creator, codes, new ShipmentMapper(), couriers, history, access);
+        var mapper = new ShipmentMapper();
+        var queryCache = new ShipmentQueryCache(shipments, mapper);
+        service = new ShipmentService(shipments, creator, codes, mapper, couriers, history, access, queryCache);
         shipment = ShipmentEntities.shipment();
         when(shipments.findById(shipment.getId())).thenReturn(Optional.of(shipment));
     }
