@@ -1519,7 +1519,7 @@ Propiedades centralizadas en `config-repo`:
 ```properties
 management.endpoints.web.exposure.include=health,info,prometheus
 management.endpoint.prometheus.enabled=true
-management.metrics.export.prometheus.enabled=true
+management.prometheus.metrics.export.enabled=true
 management.metrics.tags.application=${spring.application.name}
 ```
 
@@ -1533,27 +1533,27 @@ scrape_configs:
   - job_name: 'api-gateway'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['api-gateway:8080']
+      - targets: ['api-gateway:8090']
 
   - job_name: 'security-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['security-service:8083']
+      - targets: ['security-service:8093']
 
   - job_name: 'shipment-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['shipment-service:8081']
+      - targets: ['shipment-service:8091']
 
   - job_name: 'courier-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['courier-service:8082']
+      - targets: ['courier-service:8092']
 
   - job_name: 'chatbot-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['chatbot-service:8084']
+      - targets: ['chatbot-service:8094']
 ```
 
 #### 5.3.3. Aprovisionamiento Automático de Grafana
@@ -1563,6 +1563,7 @@ apiVersion: 1
 
 datasources:
   - name: Prometheus-LogiTrack
+    uid: Prometheus-LogiTrack
     type: prometheus
     access: proxy
     url: http://prometheus:9090
@@ -2144,8 +2145,50 @@ Para que los desarrolladores de Next.js puedan maquetar las interfaces y probar 
 | **Feature Email Verification** | `DOD-SEC-02` | El clic en el enlace navega a Next.js y confirma la cuenta en backend pasando a `enabled=true` e invalidando la caché de perfil. | Estado en base de datos y login habilitado. |
 | **Feature Chatbot Agéntico** | `DOD-IA-01` | `chatbot-service` responde preguntas en streaming SSE (`text/event-stream`) consumido por `useChatStream` en Next.js. | Renderizado reactivo token por token en el chat. |
 | **Feature Chatbot Agéntico** | `DOD-IA-02` | Las `@Tool` consultan estados de envíos y repartidores disponibles mediante OpenFeign propagando el token JWT del usuario solicitante sin perder el contexto reactivo. | Logs de OpenFeign confirmando cabecera Bearer. |
-| **Feature Observabilidad** | `DOD-OBS-01` | Prometheus recolecta métricas de todos los microservicios en `/actuator/prometheus` en la red `logitrack-net`. | Targets en estado `UP` en `http://localhost:9090/targets`. |
-| **Feature Observabilidad** | `DOD-OBS-02` | Grafana aprovisiona automáticamente el Data Source Prometheus y dashboards con latencia P95, errores 5xx y métricas de Cache Hit de Redis en el puerto 3001. | Dashboards visibles y con gráficos activos en `http://localhost:3001`. |
+| **Feature Observabilidad** | `DOD-OBS-01` | Prometheus recolecta métricas de todos los microservicios en `/actuator/prometheus` en la red `logitrack_network` sobre los puertos internos `:809x`. | Targets en estado `UP` en `http://localhost:9090/targets` (validación en despliegue del stack). |
+| **Feature Observabilidad** | `DOD-OBS-02` | Grafana aprovisiona automáticamente el Data Source Prometheus y dashboards con latencia P95, errores 5xx y métricas de Cache Hit de Redis en el puerto 3001. | Dashboards visibles y con gráficos activos en `http://localhost:3001` (validación en despliegue del stack). |
 | **Mensajería Asíncrona** | `DOD-AMQP-01` | Cambios de estado en `shipment-service` (`PENDIENTE` $\to$ `EN_RUTA`, `ENTREGADO` o `CANCELADO`) publican eventos en RabbitMQ con UUIDs y `trackingCode`, actualizando reactivamente la disponibilidad del courier a `BUSY` o `AVAILABLE`. | Traza de eventos en consola de RabbitMQ (`:15672`). |
 | **Caché Redis** | `DOD-CACHE-01` | Consultas repetidas de tracking y couriers disponibles devuelven respuestas en sub-milisegundos (Cache Hit), e invalidan entradas reactivamente ante cambios de estado. | Verificación de claves con `redis-cli monitor`. |
-| **Despliegue Docker** | `DOD-DOCKER-01` | La solución completa levanta mediante `docker compose up` consumiendo menos de 4.0 GB de memoria RAM garantizando estabilidad en equipos de 8 GB. | `docker stats` confirmando consumo dentro del presupuesto fijado. |
+| **Despliegue Docker** | `DOD-DOCKER-01` | La solución completa levanta mediante `docker compose up` consumiendo menos de 4.0 GB de memoria RAM garantizando estabilidad en equipos de 8 GB (presupuesto configurado: 3712 MiB = 3.625 GiB). | `docker stats` confirmando consumo dentro del presupuesto fijado (validación en despliegue del stack). |
+
+---
+
+## 8. Separación de listeners de gestión (Sprint 4)
+
+### 8.1. Puertos internos
+
+| Servicio | Puerto de negocio | Puerto de gestión |
+| :--- | :--- | :--- |
+| `api-gateway` | 8080 | 8090 |
+| `shipment-service` | 8081 | 8091 |
+| `courier-service` | 8082 | 8092 |
+| `security-service` | 8083 | 8093 |
+| `chatbot-service` | 8084 | 8094 |
+
+Los puertos de gestión se activan únicamente en `deploy/docker-compose.yml` mediante `MANAGEMENT_SERVER_PORT` y `MANAGEMENT_SERVER_ADDRESS=0.0.0.0`. No se publican en el host ni se fijan en `application.yml` o propiedades base, para no alterar Sprint 3, release, desarrollo local ni smoke.
+
+### 8.2. Exposición y seguridad
+
+- El listener de gestión expone únicamente `health`, `info` y `prometheus`.
+- En los servicios servlet la cadena de gestión usa `EndpointRequest` y `@Order(1)`; se activa solo cuando existe `management.server.port`.
+- En `api-gateway` (reactivo, sin Spring Security) la protección efectiva es el listener separado no publicado y el filtro JWT existente para el tráfico de negocio; el endpoint `gateway` permanece con `management.endpoint.gateway.access=none`.
+- El listener de negocio conserva sus reglas actuales y no entrega `info` ni `prometheus`.
+- Prometheus scrapea `:809x/actuator/prometheus` dentro de `logitrack_network`.
+
+### 8.3. Límite de confianza
+
+No publicar un puerto evita su publicación por Docker, pero **no** constituye autenticación ni aislamiento frente al host ni frente a otros contenedores conectados a `logitrack_network`.
+
+### 8.4. Regresión en CI y estado de verificación
+
+- Las pruebas de integración en cada servicio (`ManagementListenerSeparationTest` y `BusinessListenerHealthWithoutManagementPortTest`) usan servidores reales con puertos aleatorios:
+  - listener de gestión: responde `200` en `health` y `prometheus` (con tag `application` y buckets de histograma `http_server_requests_seconds_bucket`, `le=`);
+  - listener de negocio: rechaza `prometheus` e `info` tanto anónimamente como con JWT de negocio válido (con códigos `401`, `403` o `404`);
+  - endpoints de administración: `/actuator/env`, `/actuator/beans`, `/actuator/threaddump`, `/actuator/gateway` y `POST /actuator/shutdown` se rechazan con códigos previstos (`401`, `403`, `404`, `405`), nunca `200`;
+  - preservación de salud: sin listener separado, `/actuator/health` responde `200` en el listener de negocio.
+- En el repositorio `deploy`, el workflow actual de CI (`.github/workflows/compose.yml`) valida exclusivamente la sintaxis estática de Compose (`docker compose config --quiet`) y la sintaxis de `build-all.sh`.
+- La ejecución del stack distribuido y la acreditación de targets en estado `UP` en Prometheus y dashboards activos en Grafana queda **expresamente pendiente** como aceptación operativa para runners de CI o entornos con capacidad para levantar los 12 contenedores.
+
+### 8.5. Revisiones de configuración
+
+El flujo Sprint 3 conserva su pin inmutable en `shipment-service/deploy/sprint3-sources.json` (config-repo `0e46295`). El flujo Sprint 4 no reutiliza ese pin: al desplegar debe fijarse una revisión de `config-repo` compatible con estas propiedades (la revisión vigente de `develop` al momento del despliegue), evitando mezclar ambos flujos en un mismo Compose.
