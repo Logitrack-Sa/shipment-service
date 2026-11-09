@@ -10,8 +10,8 @@ import subprocess
 def prepare(directory, namespace, version, config_label):
     if not re.fullmatch(r'[a-z0-9][a-z0-9_-]{2,}', namespace):
         raise ValueError('Namespace Docker Hub inválido')
-    if not re.fullmatch(r'sprint2-\d{8}\.\d+', version):
-        raise ValueError('Usar versión sprint2-AAAAMMDD.N')
+    if not re.fullmatch(r'sprint[23]-\d{8}\.\d+', version):
+        raise ValueError('Usar versión sprint2-AAAAMMDD.N o sprint3-AAAAMMDD.N')
     if not re.fullmatch(r'[0-9a-f]{40}', config_label):
         raise ValueError('Config Repo requiere un SHA Git explícito')
     root = Path(directory).resolve()

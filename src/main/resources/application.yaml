@@ -3,6 +3,13 @@ spring:
     name: shipment-service
   profiles:
     default: dev
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: 2000ms
+      timeout: 3000ms
   cloud:
     openfeign:
       circuitbreaker:
@@ -21,7 +28,7 @@ spring:
     validate-on-migrate: true
 eureka:
   client:
-    enabled: ${EUREKA_CLIENT_ENABLED:true}
+    enabled: ${EUREKA_CLIENT_ENABLED:false}
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://localhost:8065/eureka/}
   instance:
