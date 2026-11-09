@@ -49,6 +49,7 @@ public class SecurityConfig {
                     .access((authentication, context) -> new AuthorizationDecision(anonymousMetrics))
                     .requestMatchers(HttpMethod.GET, "/", "/docs/**", "/swagger-ui.html", "/swagger-ui/**",
                             "/v3/api-docs", "/v3/api-docs/**", "/actuator/health", "/actuator/health/**").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/shipments/public-tracking/*").permitAll()
                     .requestMatchers("/api/v1/customers", "/api/v1/customers/**").hasRole("ADMIN")
                     .requestMatchers("/api/v1/shipments", "/api/v1/shipments/**")
                             .hasAnyRole("ADMIN", "CLIENTE", "REPARTIDOR")

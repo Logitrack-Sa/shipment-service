@@ -58,6 +58,34 @@ class ShipmentSecurityIntegrationTest extends JwtTestSupport {
                 (name.endsWith("a") ? customerA : customerB).getId().toString()) : Map.of());
     }
 
+    @Test void publicTrackingExposesOnlyStatusAndDates() throws Exception {
+        history.saveAndFlush(new ShipmentStatusHistory(a, ShipmentStatus.PENDIENTE,
+                ShipmentStatus.EN_RUTA, Instant.now(), "Dirección privada y teléfono 123"));
+        var response = mvc.perform(get("/api/v1/shipments/public-tracking/" + a.getTrackingCode()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.trackingCode").value(a.getTrackingCode()))
+                .andExpect(jsonPath("$.movements[1].status").value("EN_RUTA"))
+                .andReturn().getResponse().getContentAsString();
+        var body = json.readTree(response);
+        assertThat(body.size()).isEqualTo(4);
+        assertThat(body.get("movements").get(1).size()).isEqualTo(2);
+        assertThat(response).doesNotContain("Dirección privada", "customer", "courier", "origin", "destination", "observation");
+        mvc.perform(get("/api/v1/shipments/tracking/" + a.getTrackingCode()))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/shipments/" + a.getId() + "/history"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/shipments/public-tracking/" + a.getTrackingCode()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test void publicTrackingRejectsInvalidAndUnknownCodes() throws Exception {
+        mvc.perform(get("/api/v1/shipments/public-tracking/LT-INVALID"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/shipments/public-tracking/LT-ZZZZZZZZZZ"))
+                .andExpect(status().isNotFound());
+    }
+
     @Test void requiresTokenAndReturnsStructured401() throws Exception {
         mvc.perform(get("/actuator/prometheus")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/shipments")).andExpect(status().isUnauthorized())
