@@ -16,7 +16,7 @@ def export(directory):
                  'adminEmail': values['SECURITY_ADMIN_EMAIL'],
                  'adminPassword': values['SECURITY_ADMIN_PASSWORD'],
                  'demoUserPassword': secrets.token_urlsafe(24), 'corsOrigin': 'http://localhost:3000'}
-    environment = {'name': 'LogiTrack Sprint 3 - entorno privado local',
+    environment = {'name': 'LogiTrack plataforma - entorno privado local',
                    '_postman_variable_scope': 'environment',
                    'values': [{'key': key, 'value': value, 'enabled': True,
                                'type': 'secret' if 'Password' in key else 'default'}
@@ -30,5 +30,5 @@ def export(directory):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--directory', default='target/sprint3')
+    parser.add_argument('--directory', default='target/stack')
     export(parser.parse_args().directory)

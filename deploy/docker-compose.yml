@@ -1,4 +1,4 @@
-# Sprint 3: seis aplicaciones y tres MySQL; imagenes locales o publicadas por version.
+# plataforma: seis aplicaciones y tres MySQL; imagenes locales o publicadas por version.
 x-app: &app
   restart: unless-stopped
   user: '10001:10001'
@@ -50,7 +50,7 @@ services:
     networks: [security-storage]
   config-server:
     <<: *app
-    image: ${CONFIG_SERVER_IMAGE:-logitrack-config-server:sprint3-local}
+    image: ${CONFIG_SERVER_IMAGE:-logitrack-config-server:local}
     healthcheck:
       test: [CMD, bash, -ec, "exec 3<>/dev/tcp/127.0.0.1/8888; printf 'GET /eureka-server/default HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3; read -r status <&3; [[ $$status == *' 200 '* ]]"]
       interval: 10s
@@ -61,17 +61,17 @@ services:
     environment:
       SERVER_ADDRESS: 0.0.0.0
       SERVER_PORT: '8888'
-      SPRING_PROFILES_ACTIVE: sprint3
+      SPRING_PROFILES_ACTIVE: discovery
       CONFIG_GIT_URI: https://github.com/Logitrack-Sa/config-repo.git
       CONFIG_GIT_LABEL: ${CONFIG_GIT_LABEL:?Definir revisión Git de configuración}
     networks: [backend]
   security-service:
     <<: *app
-    image: ${SECURITY_IMAGE:-logitrack-security-service:sprint3-local}
+    image: ${SECURITY_IMAGE:-logitrack-security-service:local}
     environment:
       SERVER_ADDRESS: 0.0.0.0
       SERVER_PORT: '8083'
-      SPRING_PROFILES_ACTIVE: prod,sprint3
+      SPRING_PROFILES_ACTIVE: prod,discovery
       CONFIG_SERVER_URL: http://config-server:8888
       EUREKA_SERVER_URL: http://eureka-server:8065/eureka/
       EUREKA_CLIENT_ENABLED: 'true'
@@ -100,11 +100,11 @@ services:
     networks: [backend, security-storage]
   courier-service:
     <<: *app
-    image: ${COURIER_IMAGE:-logitrack-courier-service:sprint3-local}
+    image: ${COURIER_IMAGE:-logitrack-courier-service:local}
     environment:
       SERVER_ADDRESS: 0.0.0.0
       SERVER_PORT: '8082'
-      SPRING_PROFILES_ACTIVE: prod,sprint3
+      SPRING_PROFILES_ACTIVE: prod,discovery
       CONFIG_SERVER_URL: http://config-server:8888
       EUREKA_SERVER_URL: http://eureka-server:8065/eureka/
       EUREKA_CLIENT_ENABLED: 'true'
@@ -124,11 +124,11 @@ services:
     networks: [backend, courier-storage]
   shipment-service:
     <<: *app
-    image: ${SHIPMENT_IMAGE:-logitrack-shipment-service:sprint3-local}
+    image: ${SHIPMENT_IMAGE:-logitrack-shipment-service:local}
     environment:
       SERVER_ADDRESS: 0.0.0.0
       SERVER_PORT: '8081'
-      SPRING_PROFILES_ACTIVE: prod,sprint3
+      SPRING_PROFILES_ACTIVE: prod,discovery
       CONFIG_SERVER_URL: http://config-server:8888
       EUREKA_SERVER_URL: http://eureka-server:8065/eureka/
       EUREKA_CLIENT_ENABLED: 'true'
@@ -153,7 +153,7 @@ services:
     networks: [backend, shipment-storage]
   eureka-server:
     <<: *app
-    image: ${EUREKA_IMAGE:-logitrack-eureka-server:sprint3-local}
+    image: ${EUREKA_IMAGE:-logitrack-eureka-server:local}
     ports: ['127.0.0.1:8065:8065']
     environment:
       SERVER_ADDRESS: 0.0.0.0
@@ -166,12 +166,12 @@ services:
     networks: [backend]
   api-gateway:
     <<: *app
-    image: ${GATEWAY_IMAGE:-logitrack-api-gateway:sprint3-local}
+    image: ${GATEWAY_IMAGE:-logitrack-api-gateway:local}
     ports: ['127.0.0.1:${GATEWAY_PORT:-8066}:8080']
     environment:
       SERVER_ADDRESS: 0.0.0.0
       SERVER_PORT: '8080'
-      SPRING_PROFILES_ACTIVE: prod,sprint3
+      SPRING_PROFILES_ACTIVE: prod,discovery
       CONFIG_SERVER_URL: http://config-server:8888
       EUREKA_SERVER_URL: http://eureka-server:8065/eureka/
       EUREKA_CLIENT_ENABLED: 'true'

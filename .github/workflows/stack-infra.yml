@@ -1,4 +1,4 @@
-name: Verificar orquestacion Sprint 3
+name: Verificar orquestacion plataforma
 on:
   pull_request:
   workflow_dispatch:
@@ -13,4 +13,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Verificar red, secretos, descubrimiento y orden de arranque
-        run: python3 -m unittest discover -s integration -p test_sprint3_compose.py -v
+        run: python3 -m unittest discover -s integration -p test_stack_compose.py -v

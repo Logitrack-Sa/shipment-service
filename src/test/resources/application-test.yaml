@@ -23,15 +23,12 @@ management:
   health:
     rabbit:
       enabled: false
+    redis:
+      enabled: false
 
 eureka:
   client:
     enabled: false
-
-management:
-  health:
-    redis:
-      enabled: false
 
 logitrack:
   fee:

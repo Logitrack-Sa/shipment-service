@@ -9,7 +9,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, build_opener
 from uuid import uuid4
 from http_api import NoRedirect
-from sprint3_security import cors, roles, delivery
+from stack_security import cors, roles, delivery
 
 EXPECTED = {'SHIPMENT-SERVICE': 8081, 'COURIER-SERVICE': 8082,
             'SECURITY-SERVICE': 8083, 'API-GATEWAY': 8080}
@@ -108,9 +108,9 @@ def verify(args):
         report['checks'].append('Bearer propagado y rechazo de peticion anonima por el sistema')
         unique = uuid4().hex[:12]
         customer = call('shipment-service', '/api/v1/customers', 'POST',
-                        {'name': 'Sprint3 '+unique, 'email': unique+'@example.test', 'phone': '123456'}, token, 201)
+                        {'name': 'Stack '+unique, 'email': unique+'@example.test', 'phone': '123456'}, token, 201)
         courier = call('courier-service', '/api/v1/couriers', 'POST',
-                       {'name': 'Sprint3 '+unique, 'dni': str(10000000 + int(unique, 16) % 90000000),
+                       {'name': 'Stack '+unique, 'dni': str(10000000 + int(unique, 16) % 90000000),
                         'vehicleType': 'MOTO'}, token, 201)
         address = {'street': 'Bolivia', 'number': '1239', 'city': 'Jujuy', 'postalCode': '4600'}
         shipment = call('shipment-service', '/api/v1/shipments', 'POST',
@@ -148,8 +148,8 @@ def verify(args):
             delivery(call, token, actors['courier'], shipment)
             report['checks'].append('Entrega por repartidor asignado, historial y rechazo de transicion terminal')
         report['result'] = 'passed'
-        report['fullSprint3Acceptance'] = bool(actors and args.allow_courier_stop)
-        report['scope'] = 'Integracion real #88' if report['fullSprint3Acceptance'] else 'Comprobacion parcial de infraestructura'
+        report['fullStackAcceptance'] = bool(actors and args.allow_courier_stop)
+        report['scope'] = 'Integracion real #88' if report['fullStackAcceptance'] else 'Comprobacion parcial de infraestructura'
     except (AssertionError, OSError, KeyError, subprocess.SubprocessError) as error:
         report['result'] = 'failed'
         report['error'] = str(error)
@@ -162,12 +162,12 @@ def verify(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--env-file', default='target/sprint3/runtime.env')
-    parser.add_argument('--project', default='logitrack-sprint3')
+    parser.add_argument('--env-file', default='target/stack/runtime.env')
+    parser.add_argument('--project', default='logitrack-stack')
     parser.add_argument('--gateway', help='Por defecto utiliza GATEWAY_PORT del entorno local')
     parser.add_argument('--eureka', default='http://127.0.0.1:8065')
     parser.add_argument('--discovery-routes', action='store_true', help='Diagnostico explicito del Gateway en desarrollo')
     parser.add_argument('--allow-courier-stop', action='store_true')
     parser.add_argument('--cors-origin', default='http://localhost:3000')
-    parser.add_argument('--report', default='target/sprint3/report.json')
+    parser.add_argument('--report', default='target/stack/report.json')
     raise SystemExit(verify(parser.parse_args()))

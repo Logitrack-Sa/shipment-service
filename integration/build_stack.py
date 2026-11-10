@@ -26,13 +26,13 @@ def build(workspace, temporary, services=SERVICES):
                 raise ValueError('Contexto de compilacion fuera de la carpeta temporal elegida')
             shutil.copy2(jar, context/'app.jar')
             shutil.copy2(runtime, context/'Dockerfile')
-            subprocess.run(['docker', 'build', '--tag', f'logitrack-{service}:sprint3-local', str(context)], check=True)
+            subprocess.run(['docker', 'build', '--tag', f'logitrack-{service}:local', str(context)], check=True)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--workspace', default='..')
-    parser.add_argument('--temporary', default='target/sprint3-build')
+    parser.add_argument('--temporary', default='target/stack-build')
     parser.add_argument('--services', nargs='+', choices=SERVICES, default=SERVICES)
     args = parser.parse_args()
     build(args.workspace, args.temporary, args.services)

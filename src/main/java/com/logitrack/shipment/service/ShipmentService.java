@@ -113,8 +113,8 @@ public class ShipmentService {
             @CacheEvict(value = CacheConfig.SHIPMENT_CACHE_NAME, key = "'shipment::tracking::' + #result.trackingCode", beforeInvocation = false)
     })
     public ShipmentResponse cancel(UUID shipmentId) {
-        access.requireAdmin();
         Shipment shipment = findShipment(shipmentId);
+        access.requireCancellation(shipment);
         if (shipment.getStatus() != ShipmentStatus.PENDIENTE) {
             throw new ShipmentCannotBeCancelledException(shipmentId, shipment.getStatus().name());
         }

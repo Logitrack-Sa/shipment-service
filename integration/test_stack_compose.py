@@ -4,13 +4,13 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from prepare_sprint3 import create
+from prepare_stack import create
 
 
-class Sprint3ComposeTest(unittest.TestCase):
+class StackComposeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.temporary = tempfile.TemporaryDirectory(prefix='logitrack-sprint3-')
+        cls.temporary = tempfile.TemporaryDirectory(prefix='logitrack-stack-')
         cls.root = Path(cls.temporary.name).resolve()
         create(cls.root, 'a' * 40)
         cls.env = cls.root/'runtime.env'
@@ -24,7 +24,7 @@ class Sprint3ComposeTest(unittest.TestCase):
         for name in ('private.pem', 'public.pem'):
             (cls.root/name).chmod(0o600)
         # Solo se elimina la carpeta descartable validada de esta prueba.
-        assert cls.root.name.startswith('logitrack-sprint3-')
+        assert cls.root.name.startswith('logitrack-stack-')
         cls.temporary.cleanup()
 
     def test_nine_services_and_three_isolated_databases(self):
@@ -56,7 +56,7 @@ class Sprint3ComposeTest(unittest.TestCase):
             self.assertEqual('service_healthy', config['depends_on']['eureka-server']['condition'])
             self.assertEqual(name, config['environment']['SERVICE_HOST'])
             self.assertEqual('http://eureka-server:8065/eureka/', config['environment']['EUREKA_SERVER_URL'])
-            self.assertEqual('prod,sprint3', config['environment']['SPRING_PROFILES_ACTIVE'])
+            self.assertEqual('prod,discovery', config['environment']['SPRING_PROFILES_ACTIVE'])
         self.assertEqual('', services['shipment-service']['environment']['COURIER_SERVICE_URL'])
         for name in ('shipment-service', 'courier-service', 'security-service'):
             self.assertEqual('service_healthy', services['api-gateway']['depends_on'][name]['condition'])

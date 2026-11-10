@@ -1,4 +1,4 @@
-"""Comprueba o descarga las revisiones compatibles de los repositorios del Sprint 3."""
+"""Comprueba o descarga las revisiones compatibles de los repositorios del plataforma."""
 import argparse
 import json
 from pathlib import Path
@@ -10,7 +10,7 @@ REPOSITORIES = {'config-repo', 'config-server', 'eureka-server', 'security-servi
 
 
 def synchronize(workspace, clone=False):
-    manifest = Path(__file__).resolve().parents[1]/'deploy/sprint3-sources.json'
+    manifest = Path(__file__).resolve().parents[1]/'deploy/stack-sources.json'
     sources = json.loads(manifest.read_text(encoding='utf-8'))
     if set(sources) != REPOSITORIES or not all(re.fullmatch('[0-9a-f]{40}', ref) for ref in sources.values()):
         raise ValueError('Manifiesto de fuentes incompleto o con revisiones invalidas')

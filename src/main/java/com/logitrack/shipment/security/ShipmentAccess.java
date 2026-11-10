@@ -25,6 +25,12 @@ public class ShipmentAccess {
         requireRead(shipment.getCustomer().getId(), shipment.getCourierId());
     }
 
+    public void requireCancellation(Shipment shipment) {
+        if (hasRole("ADMIN")) return;
+        if (!hasRole("CLIENTE") || !shipment.getCustomer().getId().equals(link("customerId"))
+                || !isEmailVerified()) throw denied();
+    }
+
     public void requireRead(ShipmentResponse response) {
         requireRead(response.customerId(), response.courierId());
     }

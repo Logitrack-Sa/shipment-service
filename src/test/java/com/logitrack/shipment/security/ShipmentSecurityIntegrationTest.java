@@ -200,9 +200,18 @@ class ShipmentSecurityIntegrationTest extends JwtTestSupport {
         mvc.perform(patch("/api/v1/shipments/" + a.getId() + "/status").header("Authorization", bearer("cliente-a"))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"EN_RUTA\"}"))
                 .andExpect(status().isForbidden());
-        mvc.perform(post("/api/v1/shipments/" + a.getId() + "/cancellation").header("Authorization", bearer("cliente-a")))
+        mvc.perform(post("/api/v1/shipments/" + b.getId() + "/cancellation").header("Authorization", bearer("cliente-a")))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(couriers);
+    }
+
+    @Test void customerCancelsOwnPendingShipmentButNotDeliveredOrForeignOnes() throws Exception {
+        mvc.perform(post("/api/v1/shipments/" + a.getId() + "/cancellation").header("Authorization", bearer("repartidor-a")))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/shipments/" + a.getId() + "/cancellation").header("Authorization", bearer("cliente-a")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELADO"));
+        mvc.perform(post("/api/v1/shipments/" + a.getId() + "/cancellation").header("Authorization", bearer("cliente-a")))
+                .andExpect(status().is4xxClientError());
     }
 
     @Test void rejectsShipmentCreationWhenEmailIsNotVerifiedWith403ProblemDetail() throws Exception {

@@ -1,7 +1,7 @@
 """Regresion del UP transitorio observado despues de restaurar courier en CI."""
 import unittest
 from unittest.mock import patch
-from verify_sprint3 import wait_for_gateway
+from verify_stack import wait_for_gateway
 
 
 class GatewayRecoveryTest(unittest.TestCase):
@@ -14,13 +14,13 @@ class GatewayRecoveryTest(unittest.TestCase):
             observed.append(state[0])
             return state
 
-        with patch('verify_sprint3.request', side_effect=health):
+        with patch('verify_stack.request', side_effect=health):
             wait_for_gateway('http://gateway', timeout=5, stable_seconds=0.02, poll_seconds=0.005)
         self.assertIn(503, observed)
         self.assertGreater(len(observed), 3)
 
     def test_rejects_a_non_health_endpoint_response(self):
-        with patch('verify_sprint3.request', return_value=(404, {})):
+        with patch('verify_stack.request', return_value=(404, {})):
             with self.assertRaisesRegex(AssertionError, 'HTTP 404'):
                 wait_for_gateway('http://gateway')
 
