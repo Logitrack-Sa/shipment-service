@@ -5,8 +5,8 @@
   "security-service": "02451c67f1753543b18f4677939a248cb76946f6",
   "courier-service": "25155a0b86374b654bf2724ad69a0eb27208bf9e",
   "api-gateway": "0db13ed317a9808ef7d5730ea8445d1c6474f964",
-  "chatbot-service": "6e34d24fb50a61968d2a2623eff0b8dd9c1b50e5",
-  "payment-service": "c7af274a352870f4c16af7fd10e3d8a04d525069",
-  "logitrack-frontend": "2cec1c8941bc759fc664ff5b97b25a689e8af963",
-  "deploy": "41214c0c0f74c40e456ab7c013704b91055762d4"
+  "chatbot-service": "2780443af2af08cfff31599ed943edc9b2ec8a4e",
+  "payment-service": "56a24f3f98f82cd7bafe00a3266da8c8aee456ca",
+  "logitrack-frontend": "351ed2f22855014551735e50c79c2d0cc611e588",
+  "deploy": "24aba2bfa0619da8a78a3e4ab390430bf1b3cc2b"
 }
