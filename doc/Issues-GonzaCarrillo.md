@@ -378,8 +378,42 @@ flowchart LR
 mvn javadoc:javadoc  # validación de la documentación
 ```
 
-- Todas las ramas de estas issues terminaron con `BUILD SUCCESS`.
+- Para las issues funcionales de negocio (#36, #37, #38, #39), las suites de verificación local ejecutadas previamente finalizaron con `BUILD SUCCESS`.
 - Cobertura: `target/site/jacoco/index.html`.
 - La máquina de estados también está cubierta a nivel de dominio en
   `entity/ShipmentStatusTest` y a nivel HTTP en `controller/ChangeStatusControllerTest`
   y `controller/CancelShipmentControllerTest`.
+
+---
+
+## 7. Observabilidad Sprint 4 (#97, #98, #99)
+
+### Evidencia verificada
+
+- PR histórico `shipment-service` **#121** (título: `feat(observability): incorporar métricas Prometheus y documentación SDD Sprint 4 (#98)`, rama original `feat/s4-98-observabilidad-y-contrato-sdd`, base `develop`, fusionada el 2026-11-06), commit `0c1cc5a3698722b88786d6a53ddaba15ce3de650`.
+- Workflow **Maven verify** y **prueba Docker/MySQL** de dicho PR: `SUCCESS` — https://github.com/Logitrack-Sa/shipment-service/actions/runs/42271201679
+- La rama actual de correcciones `GonzaCarrillo/fix-observaciones-bot-97-98-99` (y `fix-observaciones-bot-97-98-99` en repositorios externos) atiende observaciones post-merge de las issues #97, #98 y #99. El CI histórico del PR #121 acredita la integración base previa, pero **no acredita por sí solo todos los targets de observabilidad de Sprint 4** ni las pruebas añadidas en esta rama: la separación real de listeners se valida en el Compose del repositorio `deploy` (ver `docs/SDD-Sprint4.md`, sección 8) y mediante las pruebas de integración con servidor real en CI.
+
+### Separación de listeners (Sprint 4)
+
+- Puertos de gestión internos: `api-gateway` 8090, `shipment-service` 8091, `courier-service` 8092, `security-service` 8093, `chatbot-service` 8094. No se publican en el host.
+- Se activan solo con `MANAGEMENT_SERVER_PORT` / `MANAGEMENT_SERVER_ADDRESS` en `deploy/docker-compose.yml`; no se fijan en las propiedades base para no alterar Sprint 3, release, desarrollo local ni smoke.
+- Acceso interno permitido: `health`, `info` y `prometheus` en el listener de gestión. En el listener de negocio no se exponen `info` ni `prometheus`.
+- No publicar el puerto evita su publicación por Docker, pero **no** constituye autenticación ni aislamiento frente al host ni frente a otros contenedores de `logitrack_network`.
+
+### Presupuesto de memoria (suma de límites, no consumo medido)
+
+- `mysql` 384, `redis` 128, `rabbitmq` 256, `config-server` 320, `eureka-server` 320, `security-service` 384, `courier-service` 384, `shipment-service` 384, `chatbot-service` 384, `api-gateway` 384, `prometheus` 192, `grafana` 192 = **3712 MiB = 3.625 GiB**.
+- No aumentar un límite sin recalcular el total del `deploy` y volver a ejecutar `docker compose config`.
+
+### Límites de la verificación y estado de CI
+
+- El workflow de orquestación (`deploy/.github/workflows/compose.yml`) solo valida sintaxis estática (`docker compose config --quiet`) y `bash -n build-all.sh`; **no ejecuta scraping ni acredita targets UP en Prometheus**.
+- La verificación de scraping distribuido y targets UP queda **expresamente pendiente** como aceptación operativa para la ejecución del stack en runners de CI dedicados.
+- Los tests MockMvc o de inspección textual no acreditan la separación real de listeners.
+- La regresión por microservicio (`ManagementListenerSeparationTest` y `BusinessListenerHealthWithoutManagementPortTest`) en `shipment-service`, `security-service`, `courier-service`, `chatbot-service` y `api-gateway` valida con servidores reales en puertos dinámicos:
+  - listener de gestión `200` en `prometheus` con buckets reales de histogramas percentiles (`http_server_requests_seconds_bucket`, `le=`), tag `application` y `health`;
+  - listener de negocio rechaza `prometheus` e `info` tanto anónimamente como con JWT de negocio válido (códigos `401`, `403` o `404`);
+  - endpoints administrativos sensibles (`env`, `beans`, `threaddump`, `gateway`, `shutdown` vía GET y POST) rechazados con códigos previstos (`401`, `403`, `404`, `405`), nunca `200`;
+  - preservación de `health` 200 en el puerto de negocio para flujos estándar sin puerto de gestión.
+- Dicha regresión fue validada y ejecutada localmente con los JDKs correspondientes (Java 25 para `shipment-service`, `security-service`, `courier-service` y `api-gateway`; Java 21 para `chatbot-service`), aprobando los 35 tests de listeners y los 14 tests de `config-repo`. La validación distribuida de scraping con Prometheus y provisioning de Grafana en Docker Compose permanece como pendiente de aceptación operativa para ejecución en runners de CI dedicados.
