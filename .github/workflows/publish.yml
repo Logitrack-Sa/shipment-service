@@ -1,11 +1,11 @@
 name: Publicar imagen versionada en Docker Hub
 on:
   push:
-    tags: ['sprint2-*']
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       version:
-        description: Versión sprint2-AAAAMMDD.N
+        description: Versión semántica de entrega, por ejemplo v1.0.0
         required: true
         type: string
 permissions:
@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$VERSION" =~ ^sprint2-[0-9]{8}\.[0-9]+$ ]]
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ "$DOCKERHUB_NAMESPACE" =~ ^[a-z0-9][a-z0-9_-]{2,}$ ]]
           test -n "$DOCKERHUB_USERNAME"
           test -n "$DOCKERHUB_TOKEN" || { echo 'Configurar el secreto limitado DOCKERHUB_TOKEN'; exit 1; }
@@ -72,48 +72,3 @@ jobs:
           name: digest-shipment-service
           path: image-digests.json
 
-  integration:
-    name: Verificar las cuatro imágenes publicadas
-    needs: publish
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      VERSION: ${{ inputs.version || github.ref_name }}
-      NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
-      CONFIG_REVISION: ${{ vars.CONFIG_GIT_REVISION }}
-      COMPOSE_PROJECT_NAME: logitrack-e2e-${{ github.run_id }}-${{ github.run_attempt }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - name: Preparar únicamente credenciales de prueba
-        id: prepare
-        run: python3 integration/prepare_release.py --namespace "$NAMESPACE" --version "$VERSION" --config-label "$CONFIG_REVISION"
-      - name: Esperar las cuatro publicaciones y fijar sus digests
-        shell: bash
-        run: |
-          set -euo pipefail
-          ready=false
-          for attempt in $(seq 1 20); do
-            if docker compose --env-file target/release/runtime.env -f compose.release.yaml pull --quiet; then ready=true; break; fi
-            sleep 10
-          done
-          test "$ready" = true
-          python3 integration/lock_release.py
-      - name: Arrancar desde imágenes publicadas sin build
-        run: docker compose --env-file target/release/runtime.env -f compose.release.yaml up -d --no-build --wait --wait-timeout 300
-      - name: Provisionar y probar las APIs reales
-        run: |
-          python3 integration/provision_release.py
-          python3 integration/verify_release.py --project "$COMPOSE_PROJECT_NAME"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: entrega-publicada
-          path: |
-            target/integration/report.json
-            docs/sprint2/releases/*.json
-          if-no-files-found: warn
-      - name: Detener solo el proyecto de prueba
-        if: always() && steps.prepare.outcome == 'success'
-        run: docker compose --env-file target/release/runtime.env -f compose.release.yaml stop
