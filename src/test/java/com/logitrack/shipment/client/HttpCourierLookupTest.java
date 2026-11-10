@@ -100,6 +100,21 @@ class HttpCourierLookupTest {
         assertThat(requests.get()).isEqualTo(1);
     }
 
+    @ParameterizedTest
+    @CsvSource({"AVAILABLE,true", "ACTIVO,true", "BUSY,false", "INACTIVE,false", "INACTIVO,false"})
+    void acceptsAvailabilityContractsWithoutTreatingBusyAsAssignable(String status, boolean available) {
+        responseBody = "{\"courierId\":\"" + ID + "\",\"status\":\"" + status + "\",\"available\":" + available + "}";
+        if (available) client.requireAvailable(ID);
+        else assertThatThrownBy(() -> client.requireAvailable(ID)).isInstanceOf(CourierNotActiveException.class);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"AVAILABLE", "BUSY", "ACTIVO"})
+    void allowsActiveCourierToFinishExistingDeliveries(String status) {
+        responseBody = "{\"courierId\":\"" + ID + "\",\"status\":\"" + status + "\"}";
+        client.requireActive(ID);
+    }
+
     @Test void checksInternalStatusWithoutAdministrativeEndpoint() throws Exception {
         responseBody = fixture("active-status");
         client.requireActive(ID);
