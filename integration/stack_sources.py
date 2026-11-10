@@ -1,4 +1,4 @@
-"""Comprueba o descarga las revisiones compatibles de los repositorios del plataforma."""
+"""Comprueba o descarga las revisiones compatibles de toda la plataforma."""
 import argparse
 import json
 from pathlib import Path
@@ -6,7 +6,8 @@ import re
 import subprocess
 
 REPOSITORIES = {'config-repo', 'config-server', 'eureka-server', 'security-service',
-                'courier-service', 'api-gateway'}
+                'courier-service', 'api-gateway', 'chatbot-service', 'payment-service',
+                'logitrack-frontend', 'deploy'}
 
 
 def synchronize(workspace, clone=False):

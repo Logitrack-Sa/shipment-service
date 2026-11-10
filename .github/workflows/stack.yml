@@ -1,4 +1,4 @@
-name: Integracion distribuida plataforma
+name: Integración completa de LogiTrack
 on:
   workflow_dispatch:
   pull_request:
@@ -14,7 +14,10 @@ concurrency:
 jobs:
   distributed:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+    env:
+      COMPOSE_PARALLEL_LIMIT: '2'
+      JAVA_TOOL_OPTIONS: '-Xmx512m -XX:ActiveProcessorCount=2'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -26,47 +29,44 @@ jobs:
           java-version: '25'
           cache: maven
           cache-dependency-path: shipment-service/pom.xml
-      - name: Obtener fuentes compatibles
+      - name: Obtener fuentes compatibles de toda la plataforma
         run: python shipment-service/integration/stack_sources.py --workspace . --clone
-      - name: Probar y empaquetar las seis aplicaciones
-        shell: bash
+      - name: Probar los servicios Java
         run: |
-          for service in config-server eureka-server security-service courier-service shipment-service api-gateway; do
-            (cd "$service" && chmod +x mvnw && ./mvnw --batch-mode --no-transfer-progress package)
+          for service in config-server eureka-server security-service courier-service shipment-service api-gateway chatbot-service payment-service; do
+            (cd "$service" && chmod +x mvnw && ./mvnw --batch-mode --no-transfer-progress test)
           done
-      - name: Validar contratos y construir imagenes
-        working-directory: shipment-service
+      - name: Validar configuración y preparar secretos efímeros
+        working-directory: deploy
         run: |
           python -m unittest discover -s ../config-repo/tests -v
-          python -m unittest discover -s integration -p test_stack_compose.py -v
-          python -m unittest discover -s integration -p test_gateway_recovery.py -v
-          python integration/build_stack.py --workspace .. --temporary "$RUNNER_TEMP/stack-build"
-          CONFIG_LABEL=$(python -c "import json; print(json.load(open('deploy/stack-sources.json'))['config-repo'])")
-          python integration/prepare_stack.py --config-label "$CONFIG_LABEL"
-      - name: Arrancar los nueve contenedores
-        working-directory: shipment-service
-        run: docker compose --env-file target/stack/runtime.env -f deploy/docker-compose.yml -p logitrack-stack-ci up -d --no-build --wait --wait-timeout 900
-      - name: Probar rutas publicas, roles, CORS, Feign y caida de courier
-        working-directory: shipment-service
-        run: python integration/verify_stack.py --project logitrack-stack-ci --allow-courier-stop
-      - name: Ejecutar la coleccion de Postman
-        working-directory: shipment-service
-        run: |
-          python integration/export_stack_postman.py
-          npx --yes newman@6.2.1 run postman/LogiTrack_Stack.postman_collection.json -e target/stack/postman.environment.json --bail --ignore-redirects --timeout-request 15000 --reporters cli,junit --reporter-junit-export target/stack/postman-results.xml
-      - name: Conservar solo el reporte sin credenciales
+          python scripts/prepare_local.py --directory target/ci
+          python - <<'PY'
+          import json,pathlib
+          path=pathlib.Path('target/ci/runtime.env')
+          values=dict(line.split('=',1) for line in path.read_text().splitlines() if line)
+          values['CONFIG_GIT_LABEL']=json.loads(pathlib.Path('../shipment-service/deploy/stack-sources.json').read_text())['config-repo']
+          path.write_text(''.join(k+'='+v+'\n' for k,v in values.items()))
+          PY
+          docker compose --env-file target/ci/runtime.env -f docker-compose.yml -f docker-compose.local.yml config --quiet
+      - name: Construir y arrancar la instalación completa
+        working-directory: deploy
+        run: docker compose --env-file target/ci/runtime.env -f docker-compose.yml -f docker-compose.local.yml up -d --build --wait --wait-timeout 600
+      - name: Comprobar registro, correo, permisos, envíos y repartidores
+        working-directory: deploy
+        run: python scripts/verify_local.py --directory target/ci
+      - name: Conservar reporte sin credenciales
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: stack-integration-report
-          path: |
-            shipment-service/target/stack/report.json
-            shipment-service/target/stack/postman-results.xml
+          name: platform-integration-report
+          path: deploy/target/ci/verification.json
           if-no-files-found: ignore
-      - name: Retirar el entorno descartable de CI
+      - name: Retirar únicamente el entorno descartable de CI
         if: always()
-        working-directory: shipment-service
+        working-directory: deploy
         run: |
-          if [ -f target/stack/runtime.env ]; then
-            docker compose --env-file target/stack/runtime.env -f deploy/docker-compose.yml -p logitrack-stack-ci down --volumes --remove-orphans
+          if [ -f target/ci/runtime.env ]; then
+            docker compose --env-file target/ci/runtime.env -f docker-compose.yml -f docker-compose.local.yml down --volumes --remove-orphans
           fi
+
