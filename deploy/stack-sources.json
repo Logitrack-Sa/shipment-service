@@ -1,12 +1,12 @@
 {
-  "config-repo": "cf70ec5342a734d4681fed15691e9901c49002eb",
-  "config-server": "5deebd5a56f1f115a00558f895943148ec3e646e",
+  "config-repo": "760d3d0593663443861bb6101dfcf0996f54692b",
+  "config-server": "84de20dc0ef6e60ad9ca0e860a7038c7131cb85e",
   "eureka-server": "cd6679716590ed1c66fd6268832eec27cd07c800",
-  "security-service": "02451c67f1753543b18f4677939a248cb76946f6",
-  "courier-service": "25155a0b86374b654bf2724ad69a0eb27208bf9e",
+  "security-service": "7cd955946062f3d93fa79e5efb64b341702293b7",
+  "courier-service": "731804c7845ddc9af0cfd26c9ede9e9edf96ddf0",
   "api-gateway": "0db13ed317a9808ef7d5730ea8445d1c6474f964",
   "chatbot-service": "2780443af2af08cfff31599ed943edc9b2ec8a4e",
   "payment-service": "56a24f3f98f82cd7bafe00a3266da8c8aee456ca",
-  "logitrack-frontend": "351ed2f22855014551735e50c79c2d0cc611e588",
+  "logitrack-frontend": "a623232f9a079d41da9f4f57c083908ac45b3fe0",
   "deploy": "24aba2bfa0619da8a78a3e4ab390430bf1b3cc2b"
 }
