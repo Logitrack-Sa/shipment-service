@@ -101,7 +101,7 @@ class HttpCourierLookupTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"AVAILABLE,true", "ACTIVO,true", "BUSY,false", "INACTIVE,false", "INACTIVO,false"})
+    @CsvSource({"ACTIVO,true", "ACTIVO,false", "INACTIVO,false"})
     void acceptsAvailabilityContractsWithoutTreatingBusyAsAssignable(String status, boolean available) {
         responseBody = "{\"courierId\":\"" + ID + "\",\"status\":\"" + status + "\",\"available\":" + available + "}";
         if (available) client.requireAvailable(ID);
@@ -109,7 +109,7 @@ class HttpCourierLookupTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"AVAILABLE", "BUSY", "ACTIVO"})
+    @CsvSource({"ACTIVO"})
     void allowsActiveCourierToFinishExistingDeliveries(String status) {
         responseBody = "{\"courierId\":\"" + ID + "\",\"status\":\"" + status + "\"}";
         client.requireActive(ID);

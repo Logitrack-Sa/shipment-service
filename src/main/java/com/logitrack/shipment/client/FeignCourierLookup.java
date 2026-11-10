@@ -5,7 +5,6 @@ import com.logitrack.shipment.exception.CourierNotActiveException;
 import com.logitrack.shipment.exception.RemoteCourierException;
 import feign.FeignException;
 import java.util.UUID;
-import java.util.Set;
 import java.util.function.BiFunction;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,9 +17,6 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class FeignCourierLookup implements CourierLookup {
-    private static final Set<String> AVAILABLE_STATUSES = Set.of("ACTIVO", "AVAILABLE");
-    private static final Set<String> ACTIVE_STATUSES = Set.of("ACTIVO", "AVAILABLE", "BUSY");
-    private static final Set<String> KNOWN_STATUSES = Set.of("ACTIVO", "INACTIVO", "AVAILABLE", "BUSY", "INACTIVE");
     private final CourierFeignClient courierFeignClient;
     private final CourierFeignFallbackFactory fallbackFactory;
 
@@ -39,7 +35,7 @@ public class FeignCourierLookup implements CourierLookup {
         CourierResult result = execute((client, bearer) -> client.getAvailability(id, bearer));
         CourierResult validated = validateIdentity(result, id);
         Boolean available = validated.available();
-        if (available == null || available != AVAILABLE_STATUSES.contains(validated.status())) {
+        if (available == null || (available && !"ACTIVO".equals(validated.status()))) {
             log.warn("Payload inconsistente de disponibilidad recibido desde courier-service para repartidor {}", id);
             throw unavailable();
         }
@@ -52,7 +48,7 @@ public class FeignCourierLookup implements CourierLookup {
     public void requireActive(UUID id) {
         CourierResult result = execute((client, bearer) -> client.getStatus(id, bearer));
         CourierResult validated = validateIdentity(result, id);
-        if (!ACTIVE_STATUSES.contains(validated.status())) {
+        if (!"ACTIVO".equals(validated.status())) {
             throw new CourierNotActiveException(id);
         }
     }
@@ -79,7 +75,7 @@ public class FeignCourierLookup implements CourierLookup {
                 || result.courierId() == null
                 || result.status() == null
                 || !id.equals(result.courierId())
-                || !KNOWN_STATUSES.contains(result.status())) {
+                || !("ACTIVO".equals(result.status()) || "INACTIVO".equals(result.status()))) {
             log.warn("Respuesta inválida o identidad no coincidente desde courier-service para repartidor {}", id);
             throw unavailable();
         }
