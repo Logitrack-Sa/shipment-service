@@ -1,6 +1,7 @@
 package com.logitrack.shipment.service;
 
 import com.logitrack.shipment.config.RabbitMQConfig;
+import com.logitrack.shipment.config.CacheConfig;
 import com.logitrack.shipment.security.ShipmentAccess;
 import com.logitrack.shipment.dto.CreateShipmentRequest;
 import com.logitrack.shipment.dto.ShipmentResponse;
@@ -21,7 +22,9 @@ import com.logitrack.shipment.repository.ShipmentRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +35,7 @@ import java.util.UUID;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class ShipmentService {
     private static final int MAX_TRACKING_ATTEMPTS = 5;
     /** Observación por defecto registrada en el historial al cancelar un envío. */
@@ -44,40 +48,14 @@ public class ShipmentService {
     private final ShipmentStatusRecorder statusRecorder;
     private final ShipmentAccess access;
     private final RabbitTemplate rabbitTemplate;
-
-    public ShipmentService(
-            ShipmentRepository shipments,
-            ShipmentCreator creator,
-            TrackingCodeGenerator trackingCodes,
-            ShipmentMapper mapper,
-            CourierLookup couriers,
-            ShipmentStatusRecorder statusRecorder,
-            ShipmentAccess access) {
-        this(shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access, null);
-    }
-
-    @Autowired
-    public ShipmentService(
-            ShipmentRepository shipments,
-            ShipmentCreator creator,
-            TrackingCodeGenerator trackingCodes,
-            ShipmentMapper mapper,
-            CourierLookup couriers,
-            ShipmentStatusRecorder statusRecorder,
-            ShipmentAccess access,
-            RabbitTemplate rabbitTemplate) {
-        this.shipments = shipments;
-        this.creator = creator;
-        this.trackingCodes = trackingCodes;
-        this.mapper = mapper;
-        this.couriers = couriers;
-        this.statusRecorder = statusRecorder;
-        this.access = access;
-        this.rabbitTemplate = rabbitTemplate;
-    }
+    private final ShipmentQueryCache queryCache;
 
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheConfig.SHIPMENT_CACHE_NAME, key = "'shipment::id::' + #shipmentId", beforeInvocation = false),
+            @CacheEvict(value = CacheConfig.SHIPMENT_CACHE_NAME, key = "'shipment::tracking::' + #result.trackingCode", beforeInvocation = false)
+    })
     public ShipmentResponse assignCourier(UUID shipmentId, UUID courierId) {
         access.requireAdmin();
         Shipment shipment = shipments.findById(shipmentId)
@@ -107,6 +85,10 @@ public class ShipmentService {
      * @throws CourierNotActiveException       si pasa a {@code EN_RUTA} con un repartidor inactivo
      */
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheConfig.SHIPMENT_CACHE_NAME, key = "'shipment::id::' + #shipmentId", beforeInvocation = false),
+            @CacheEvict(value = CacheConfig.SHIPMENT_CACHE_NAME, key = "'shipment::tracking::' + #result.trackingCode", beforeInvocation = false)
+    })
     public ShipmentResponse changeStatus(UUID shipmentId, ShipmentStatus target, String observation) {
         Shipment shipment = findShipment(shipmentId);
         access.requireTransition(shipment, target);
@@ -126,6 +108,10 @@ public class ShipmentService {
      * @throws ShipmentCannotBeCancelledException si el envío no está en estado {@code PENDIENTE}
      */
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheConfig.SHIPMENT_CACHE_NAME, key = "'shipment::id::' + #shipmentId", beforeInvocation = false),
+            @CacheEvict(value = CacheConfig.SHIPMENT_CACHE_NAME, key = "'shipment::tracking::' + #result.trackingCode", beforeInvocation = false)
+    })
     public ShipmentResponse cancel(UUID shipmentId) {
         access.requireAdmin();
         Shipment shipment = findShipment(shipmentId);
@@ -204,19 +190,16 @@ public class ShipmentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Envío", shipmentId));
     }
 
-    @Transactional(readOnly = true)
     public ShipmentResponse findById(UUID id) {
-        Shipment shipment = findShipment(id);
-        access.requireRead(shipment);
-        return mapper.toResponse(shipment);
+        ShipmentResponse response = queryCache.findById(id);
+        access.requireRead(response);
+        return response;
     }
 
-    @Transactional(readOnly = true)
     public ShipmentResponse findByTrackingCode(String trackingCode) {
-        Shipment shipment = shipments.findByTrackingCode(trackingCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Envío", trackingCode));
-        access.requireRead(shipment);
-        return mapper.toResponse(shipment);
+        ShipmentResponse response = queryCache.findByTrackingCode(trackingCode);
+        access.requireRead(response);
+        return response;
     }
 
     @Transactional(readOnly = true)

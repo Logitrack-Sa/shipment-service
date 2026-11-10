@@ -1,5 +1,6 @@
 package com.logitrack.shipment.security;
 
+import com.logitrack.shipment.dto.ShipmentResponse;
 import com.logitrack.shipment.entity.Shipment;
 import com.logitrack.shipment.entity.ShipmentStatus;
 import com.logitrack.shipment.exception.AccountNotVerifiedException;
@@ -21,10 +22,17 @@ public class ShipmentAccess {
     }
 
     public void requireRead(Shipment shipment) {
+        requireRead(shipment.getCustomer().getId(), shipment.getCourierId());
+    }
+
+    public void requireRead(ShipmentResponse response) {
+        requireRead(response.customerId(), response.courierId());
+    }
+
+    private void requireRead(UUID customerId, UUID courierId) {
         if (!hasRole("ADMIN")
-                && !(hasRole("CLIENTE") && shipment.getCustomer().getId().equals(link("customerId")))
-                && !(hasRole("REPARTIDOR") && shipment.getCourierId() != null
-                    && shipment.getCourierId().equals(link("courierId")))) throw denied();
+                && !(hasRole("CLIENTE") && customerId != null && customerId.equals(link("customerId")))
+                && !(hasRole("REPARTIDOR") && courierId != null && courierId.equals(link("courierId")))) throw denied();
     }
 
     public void requireTransition(Shipment shipment, ShipmentStatus target) {

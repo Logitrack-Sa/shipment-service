@@ -75,8 +75,8 @@ class ShipmentServiceTest {
         var mapper = new ShipmentMapper();
         var fees = new FeeCalculator(new BigDecimal("1000"), new BigDecimal("250"), new BigDecimal("5000"));
         var creator = new ShipmentCreator(customers, shipments, fees, mapper, recorder);
-        service = new ShipmentService(
-                shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access, rabbitTemplate);
+        var queryCache = new ShipmentQueryCache(shipments, mapper);
+        service = new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access, rabbitTemplate, queryCache);
     }
 
     @Nested
