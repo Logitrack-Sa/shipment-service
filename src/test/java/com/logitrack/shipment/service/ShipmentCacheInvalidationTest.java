@@ -99,7 +99,8 @@ class ShipmentCacheInvalidationTest {
                 ShipmentStatusRecorder statusRecorder,
                 ShipmentAccess access,
                 ShipmentQueryCache queryCache) {
-            return new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access, null, queryCache);
+            return new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access,
+                    org.mockito.Mockito.mock(ShipmentStatusEventOutbox.class), queryCache);
         }
 
         @Bean

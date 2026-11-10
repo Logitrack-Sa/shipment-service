@@ -106,7 +106,8 @@ class ShipmentCacheSecurityTest {
                 ShipmentStatusRecorder statusRecorder,
                 ShipmentAccess access,
                 ShipmentQueryCache queryCache) {
-            return new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access, null, queryCache);
+            return new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access,
+                    org.mockito.Mockito.mock(com.logitrack.shipment.service.ShipmentStatusEventOutbox.class), queryCache);
         }
 
         @Bean

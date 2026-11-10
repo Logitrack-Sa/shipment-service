@@ -214,22 +214,72 @@ class ShipmentSecurityIntegrationTest extends JwtTestSupport {
                 .andExpect(status().is4xxClientError());
     }
 
-    @Test void rejectsShipmentCreationWhenEmailIsNotVerifiedWith403ProblemDetail() throws Exception {
-        var request = json.valueToTree(ShipmentFixtures.request());
-        ((com.fasterxml.jackson.databind.node.ObjectNode) request).put("customerId", customerA.getId().toString());
-        String unverifiedToken = "Bearer " + token("cliente-a", Map.of(
+    @ParameterizedTest(name = "email_verified {0} no habilita la creación")
+    @org.junit.jupiter.params.provider.MethodSource("invalidEmailVerifiedClaims")
+    void rejectsShipmentCreationWithNonBooleanTrueClaim(String description, Object value) throws Exception {
+        assertAccountNotVerified(token("cliente-a", Map.of(
                 "customerId", customerA.getId().toString(),
-                "email_verified", false
-        ));
+                "email_verified", value)));
+    }
+
+    @Test void rejectsShipmentCreationWhenEmailVerifiedClaimIsAbsent() throws Exception {
+        assertAccountNotVerified(tokenWithoutEmailVerified("cliente-a",
+                Map.of("customerId", customerA.getId().toString())));
+    }
+
+    @Test void keepsRoleAndOwnershipErrorsSeparateFromAccountVerification() throws Exception {
+        var request = shipmentRequestFor(customerB);
+        String unverifiedClient = "Bearer " + token("cliente-a", Map.of(
+                "customerId", customerA.getId().toString(), "email_verified", false));
+        mvc.perform(post("/api/v1/shipments").header("Authorization", unverifiedClient)
+                        .contentType(MediaType.APPLICATION_JSON).content(request.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+        String unverifiedCourier = "Bearer " + token("repartidor-a", Map.of("email_verified", false));
+        mvc.perform(post("/api/v1/shipments").header("Authorization", unverifiedCourier)
+                        .contentType(MediaType.APPLICATION_JSON).content(request.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    }
+
+    private void assertAccountNotVerified(String token) throws Exception {
+        var request = shipmentRequestFor(customerA);
+        long shipmentsBefore = shipments.count();
+        long historyBefore = history.count();
 
         mvc.perform(post("/api/v1/shipments")
-                        .header("Authorization", unverifiedToken)
+                        .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request.toString()))
                 .andExpect(status().isForbidden())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://logitrack.com/errors/account-not-verified"))
+                .andExpect(jsonPath("$.title").value("Account Not Verified"))
                 .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.detail").value(
+                        "No puedes solicitar envíos hasta que confirmes tu dirección de correo electrónico."))
+                .andExpect(jsonPath("$.instance").value("/api/v1/shipments"))
                 .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_VERIFIED"))
                 .andExpect(jsonPath("$.email_verified").value(false));
+
+        assertThat(shipments.count()).isEqualTo(shipmentsBefore);
+        assertThat(history.count()).isEqualTo(historyBefore);
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode shipmentRequestFor(Customer customer) {
+        var request = json.valueToTree(ShipmentFixtures.request());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) request).put("customerId", customer.getId().toString());
+        return request;
+    }
+
+    static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> invalidEmailVerifiedClaims() {
+        return java.util.stream.Stream.of(
+                org.junit.jupiter.params.provider.Arguments.of("booleano false", false),
+                org.junit.jupiter.params.provider.Arguments.of("texto true", "true"),
+                org.junit.jupiter.params.provider.Arguments.of("texto TRUE", "TRUE"),
+                org.junit.jupiter.params.provider.Arguments.of("entero 1", 1),
+                org.junit.jupiter.params.provider.Arguments.of("lista", List.of(true)));
     }
 
     @Test void courierChangesOnlyAssignedShipmentAndCannotCancel() throws Exception {

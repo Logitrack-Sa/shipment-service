@@ -1,11 +1,9 @@
 package com.logitrack.shipment.service;
 
-import com.logitrack.shipment.config.RabbitMQConfig;
 import com.logitrack.shipment.config.CacheConfig;
 import com.logitrack.shipment.security.ShipmentAccess;
 import com.logitrack.shipment.dto.CreateShipmentRequest;
 import com.logitrack.shipment.dto.ShipmentResponse;
-import com.logitrack.shipment.dto.ShipmentStatusChangedEvent;
 import com.logitrack.shipment.dto.PageResponse;
 import com.logitrack.shipment.entity.Shipment;
 import com.logitrack.shipment.entity.ShipmentStatus;
@@ -19,9 +17,6 @@ import com.logitrack.shipment.exception.ShipmentCannotBeCancelledException;
 import com.logitrack.shipment.mapper.ShipmentMapper;
 import com.logitrack.shipment.client.CourierLookup;
 import com.logitrack.shipment.repository.ShipmentRepository;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.AmqpException;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
@@ -30,10 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.UUID;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ShipmentService {
@@ -47,7 +40,7 @@ public class ShipmentService {
     private final CourierLookup couriers;
     private final ShipmentStatusRecorder statusRecorder;
     private final ShipmentAccess access;
-    private final RabbitTemplate rabbitTemplate;
+    private final ShipmentStatusEventOutbox eventOutbox;
     private final ShipmentQueryCache queryCache;
 
 
@@ -149,33 +142,8 @@ public class ShipmentService {
 
         shipment.changeStatusTo(target);
         statusRecorder.record(shipment, from, target, observation);
-        publishStatusChangedEvent(shipment, from, target);
+        eventOutbox.record(shipment, from, target);
         return mapper.toResponse(shipment);
-    }
-
-    private void publishStatusChangedEvent(Shipment shipment, ShipmentStatus from, ShipmentStatus target) {
-        if (rabbitTemplate == null) {
-            return;
-        }
-        ShipmentStatusChangedEvent event = new ShipmentStatusChangedEvent(
-                UUID.randomUUID(),
-                shipment.getId() != null ? shipment.getId().toString() : null,
-                shipment.getTrackingCode(),
-                shipment.getCourierId() != null ? shipment.getCourierId().toString() : null,
-                from,
-                target,
-                Instant.now()
-        );
-        try {
-            rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.SHIPMENT_EXCHANGE,
-                    RabbitMQConfig.SHIPMENT_STATUS_CHANGED_ROUTING_KEY,
-                    event
-            );
-        } catch (AmqpException exception) {
-            log.warn("No se pudo publicar el evento ShipmentStatusChangedEvent en RabbitMQ para el envío {}: {}",
-                    shipment.getId(), exception.getMessage());
-        }
     }
 
     /**

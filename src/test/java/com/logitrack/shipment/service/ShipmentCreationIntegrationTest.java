@@ -5,6 +5,7 @@ import com.logitrack.shipment.entity.Customer;
 import com.logitrack.shipment.entity.ShipmentStatus;
 import com.logitrack.shipment.exception.ResourceNotFoundException;
 import com.logitrack.shipment.repository.CustomerRepository;
+import com.logitrack.shipment.repository.OutboxEventRepository;
 import com.logitrack.shipment.repository.ShipmentRepository;
 import com.logitrack.shipment.repository.ShipmentStatusHistoryRepository;
 import com.logitrack.shipment.support.ShipmentFixtures;
@@ -40,6 +41,8 @@ class ShipmentCreationIntegrationTest extends com.logitrack.shipment.support.Jwt
     private ShipmentRepository shipments;
     @Autowired
     private ShipmentStatusHistoryRepository history;
+    @Autowired
+    private OutboxEventRepository outbox;
     @MockitoSpyBean
     private ShipmentStatusRecorder recorder;
     @MockitoSpyBean
@@ -55,6 +58,7 @@ class ShipmentCreationIntegrationTest extends com.logitrack.shipment.support.Jwt
         org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
                 new org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken(jwt,
                 java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))));
+        outbox.deleteAll();
         history.deleteAll();
         shipments.deleteAll();
         customers.deleteAll();
@@ -90,6 +94,7 @@ class ShipmentCreationIntegrationTest extends com.logitrack.shipment.support.Jwt
             assertThat(entry.getNewStatus()).isEqualTo(ShipmentStatus.PENDIENTE);
             assertThat(entry.getChangedAt()).isNotNull();
         });
+        assertThat(outbox.count()).isZero();
     }
 
     @Test

@@ -25,6 +25,7 @@ class AssignCourierTest {
     @Mock ShipmentCreator creator;
     @Mock TrackingCodeGenerator codes;
     @Mock ShipmentStatusRecorder history;
+    @Mock ShipmentStatusEventOutbox eventOutbox;
     ShipmentService service;
     Shipment shipment;
     UUID courierId = UUID.randomUUID();
@@ -32,7 +33,7 @@ class AssignCourierTest {
     @BeforeEach void setup() {
         var mapper = new ShipmentMapper();
         var queryCache = new ShipmentQueryCache(shipments, mapper);
-        service = new ShipmentService(shipments, creator, codes, mapper, couriers, history, access, null, queryCache);
+        service = new ShipmentService(shipments, creator, codes, mapper, couriers, history, access, eventOutbox, queryCache);
         shipment = ShipmentEntities.shipment();
         when(shipments.findById(shipment.getId())).thenReturn(Optional.of(shipment));
     }
@@ -42,7 +43,7 @@ class AssignCourierTest {
         var other = UUID.randomUUID();
         assertThat(service.assignCourier(shipment.getId(), other).courierId()).isEqualTo(other);
         verify(couriers).requireAvailable(courierId);
-        verifyNoInteractions(history);
+        verifyNoInteractions(history, eventOutbox);
     }
 
     @Test void lookupFailurePreservesPreviousAssignmentAndHistory() {
@@ -52,13 +53,13 @@ class AssignCourierTest {
         assertThatThrownBy(() -> service.assignCourier(shipment.getId(), courierId))
                 .isInstanceOf(CourierNotActiveException.class);
         assertThat(shipment.getCourierId()).isEqualTo(previous);
-        verifyNoInteractions(history);
+        verifyNoInteractions(history, eventOutbox);
     }
 
     @Test void unknownShipmentDoesNotCallRemoteService() {
         when(shipments.findById(shipment.getId())).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.assignCourier(shipment.getId(), courierId))
                 .isInstanceOf(ResourceNotFoundException.class);
-        verifyNoInteractions(couriers, history);
+        verifyNoInteractions(couriers, history, eventOutbox);
     }
 }

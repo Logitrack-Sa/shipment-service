@@ -1,8 +1,6 @@
 package com.logitrack.shipment.service;
 
-import com.logitrack.shipment.config.RabbitMQConfig;
 import com.logitrack.shipment.dto.CreateShipmentRequest;
-import com.logitrack.shipment.dto.ShipmentStatusChangedEvent;
 import com.logitrack.shipment.entity.Shipment;
 import com.logitrack.shipment.entity.ShipmentStatus;
 import com.logitrack.shipment.exception.CourierNotActiveException;
@@ -26,10 +24,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -66,7 +62,7 @@ class ShipmentServiceTest {
     private CourierLookup couriers;
 
     @Mock
-    private RabbitTemplate rabbitTemplate;
+    private ShipmentStatusEventOutbox eventOutbox;
 
     private ShipmentService service;
 
@@ -76,7 +72,7 @@ class ShipmentServiceTest {
         var fees = new FeeCalculator(new BigDecimal("1000"), new BigDecimal("250"), new BigDecimal("5000"));
         var creator = new ShipmentCreator(customers, shipments, fees, mapper, recorder);
         var queryCache = new ShipmentQueryCache(shipments, mapper);
-        service = new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access, rabbitTemplate, queryCache);
+        service = new ShipmentService(shipments, creator, trackingCodes, mapper, couriers, statusRecorder, access, eventOutbox, queryCache);
     }
 
     @Nested
@@ -275,16 +271,13 @@ class ShipmentServiceTest {
                 assertThat(response.status()).isEqualTo(to);
                 assertThat(shipment.getStatus()).isEqualTo(to);
                 verify(statusRecorder).record(shipment, from, to, OBSERVATION);
-                verify(rabbitTemplate).convertAndSend(
-                        eq(RabbitMQConfig.SHIPMENT_EXCHANGE),
-                        eq(RabbitMQConfig.SHIPMENT_STATUS_CHANGED_ROUTING_KEY),
-                        any(ShipmentStatusChangedEvent.class));
+                verify(eventOutbox).record(shipment, from, to);
             } else {
                 assertThatThrownBy(() -> service.changeStatus(SHIPMENT_ID, to, OBSERVATION))
                         .isInstanceOf(InvalidStateTransitionException.class);
 
                 assertThat(shipment.getStatus()).isEqualTo(from);
-                verifyNoInteractions(statusRecorder, rabbitTemplate);
+                verifyNoInteractions(statusRecorder, eventOutbox);
             }
         }
 
@@ -300,7 +293,7 @@ class ShipmentServiceTest {
                     .isInstanceOf(CourierNotAssignedException.class);
 
             assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.PENDIENTE);
-            verifyNoInteractions(statusRecorder);
+            verifyNoInteractions(statusRecorder, eventOutbox);
         }
 
         /**
@@ -318,7 +311,7 @@ class ShipmentServiceTest {
                     .isInstanceOf(CourierNotActiveException.class);
 
             assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.PENDIENTE);
-            verifyNoInteractions(statusRecorder);
+            verifyNoInteractions(statusRecorder, eventOutbox);
         }
 
         /**
@@ -335,6 +328,7 @@ class ShipmentServiceTest {
 
             assertThat(response.status()).isEqualTo(ShipmentStatus.EN_RUTA);
             verify(statusRecorder).record(shipment, ShipmentStatus.PENDIENTE, ShipmentStatus.EN_RUTA, null);
+            verify(eventOutbox).record(shipment, ShipmentStatus.PENDIENTE, ShipmentStatus.EN_RUTA);
         }
 
         /**
@@ -352,12 +346,13 @@ class ShipmentServiceTest {
                 assertThat(response.status()).isEqualTo(ShipmentStatus.CANCELADO);
                 verify(statusRecorder).record(shipment, ShipmentStatus.PENDIENTE,
                         ShipmentStatus.CANCELADO, CANCELLATION);
+                verify(eventOutbox).record(shipment, ShipmentStatus.PENDIENTE, ShipmentStatus.CANCELADO);
             } else {
                 assertThatThrownBy(() -> service.cancel(SHIPMENT_ID))
                         .isInstanceOf(ShipmentCannotBeCancelledException.class);
 
                 assertThat(shipment.getStatus()).isEqualTo(status);
-                verifyNoInteractions(statusRecorder);
+                verifyNoInteractions(statusRecorder, eventOutbox);
             }
         }
 
@@ -376,7 +371,7 @@ class ShipmentServiceTest {
             }
 
             assertThat(shipment.getStatus()).isEqualTo(terminal);
-            verifyNoInteractions(statusRecorder);
+            verifyNoInteractions(statusRecorder, eventOutbox);
         }
 
         /**
@@ -393,7 +388,7 @@ class ShipmentServiceTest {
             assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.ENTREGADO);
             verify(shipments, never()).save(any());
             verify(shipments, never()).saveAndFlush(any());
-            verifyNoInteractions(statusRecorder);
+            verifyNoInteractions(statusRecorder, eventOutbox);
         }
 
         /**
@@ -412,32 +407,6 @@ class ShipmentServiceTest {
             assertThat(shipment.getCourierId()).isEqualTo(courier);
         }
 
-        @Test
-        void publishesShipmentStatusChangedEventWithExpectedContractFields() {
-            Shipment shipment = persistedShipment(ShipmentStatus.PENDIENTE);
-            UUID courier = activeCourier();
-            shipment.assignCourier(courier);
-            doNothing().when(couriers).requireActive(courier);
-
-            service.changeStatus(SHIPMENT_ID, ShipmentStatus.EN_RUTA, OBSERVATION);
-
-            ArgumentCaptor<ShipmentStatusChangedEvent> captor =
-                    ArgumentCaptor.forClass(ShipmentStatusChangedEvent.class);
-            verify(rabbitTemplate).convertAndSend(
-                    eq(RabbitMQConfig.SHIPMENT_EXCHANGE),
-                    eq(RabbitMQConfig.SHIPMENT_STATUS_CHANGED_ROUTING_KEY),
-                    captor.capture());
-
-            ShipmentStatusChangedEvent event = captor.getValue();
-            assertThat(event.eventId()).isNotNull();
-            assertThat(event.shipmentId()).isEqualTo(SHIPMENT_ID.toString());
-            assertThat(event.trackingCode()).isEqualTo(TRACKING_CODE);
-            assertThat(event.courierId()).isEqualTo(courier.toString());
-            assertThat(event.previousStatus()).isEqualTo(ShipmentStatus.PENDIENTE);
-            assertThat(event.currentStatus()).isEqualTo(ShipmentStatus.EN_RUTA);
-            assertThat(event.occurredAt()).isNotNull();
-        }
-
         /**
          * Un envío inexistente lanza {@link ResourceNotFoundException} sin registrar historial.
          */
@@ -448,7 +417,7 @@ class ShipmentServiceTest {
             assertThatThrownBy(() -> service.changeStatus(SHIPMENT_ID, ShipmentStatus.CANCELADO, null))
                     .isInstanceOf(ResourceNotFoundException.class);
 
-            verifyNoInteractions(statusRecorder);
+            verifyNoInteractions(statusRecorder, eventOutbox);
         }
 
         /**

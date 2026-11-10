@@ -5,3 +5,8 @@ spring:
     config:
       request-connect-timeout: 3000
       request-read-timeout: 5000
+  rabbitmq:
+    # Credenciales solo para desarrollo local. En dev/prod la configuración efectiva
+    # proviene de config-repo (RABBITMQ_DEFAULT_USER / RABBITMQ_DEFAULT_PASS).
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
