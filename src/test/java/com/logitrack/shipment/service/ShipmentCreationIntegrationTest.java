@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -31,12 +32,14 @@ class ShipmentCreationIntegrationTest {
     private ShipmentService service;
     @Autowired
     private CustomerRepository customers;
-    @Autowired
+    @MockitoSpyBean
     private ShipmentRepository shipments;
     @Autowired
     private ShipmentStatusHistoryRepository history;
     @MockitoSpyBean
     private ShipmentStatusRecorder recorder;
+    @MockitoSpyBean
+    private TrackingCodeGenerator trackingCodes;
 
     @BeforeEach
     void clearDatabase() {
@@ -84,6 +87,21 @@ class ShipmentCreationIntegrationTest {
         assertThatThrownBy(() -> service.createShipment(request)).isInstanceOf(ResourceNotFoundException.class);
         assertThat(shipments.count()).isZero();
         assertThat(history.count()).isZero();
+    }
+
+    @Test
+    void retriesInANewTransactionAfterARealUniqueConstraintFailure() {
+        var request = requestForExistingCustomer();
+        var existing = service.createShipment(request);
+        when(trackingCodes.generate()).thenReturn(existing.trackingCode(), "LT-0123456789");
+        when(shipments.existsByTrackingCode(existing.trackingCode())).thenReturn(false, true);
+
+        var created = service.createShipment(request);
+
+        assertThat(created.trackingCode()).isEqualTo("LT-0123456789");
+        assertThat(shipments.count()).isEqualTo(2);
+        assertThat(history.count()).isEqualTo(2);
+        assertThat(history.findByShipmentIdOrderByChangedAtAsc(created.id())).hasSize(1);
     }
 
     private CreateShipmentRequest requestForExistingCustomer() {
