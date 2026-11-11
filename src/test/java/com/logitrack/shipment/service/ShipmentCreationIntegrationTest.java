@@ -12,6 +12,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.util.AopTestUtils;
@@ -25,9 +27,11 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 class ShipmentCreationIntegrationTest {
+    @Autowired
+    private TestRestTemplate http;
     @Autowired
     private ShipmentService service;
     @Autowired
@@ -46,6 +50,15 @@ class ShipmentCreationIntegrationTest {
         history.deleteAll();
         shipments.deleteAll();
         customers.deleteAll();
+    }
+
+    @Test
+    void exposesHealthSwaggerAndShipmentOpenApi() {
+        assertThat(http.getForEntity("/actuator/health", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+        var api = http.getForEntity("/v3/api-docs", String.class);
+        assertThat(api.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(api.getBody()).contains("/api/v1/shipments", "/api/v1/shipments/{id}");
+        assertThat(http.getForEntity("/swagger-ui.html", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
