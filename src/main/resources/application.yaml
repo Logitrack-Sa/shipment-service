@@ -20,6 +20,12 @@ management:
       exposure:
         include: health,info
 
+logitrack:
+  fee:
+    base: ${FEE_BASE:1000.00}
+    price-per-kg: ${FEE_PRICE_PER_KG:250.00}
+    volumetric-divisor: ${FEE_VOLUMETRIC_DIVISOR:5000}
+
 app:
   limites:
     extraccion-diaria:
