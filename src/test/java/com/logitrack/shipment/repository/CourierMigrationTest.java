@@ -11,7 +11,9 @@ import static org.assertj.core.api.Assertions.*;
 
 @Testcontainers
 class CourierMigrationTest {
-    @Container static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4");
+    @Container static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.4")
+            .withStartupTimeoutSeconds(300)
+            .withTmpFs(Map.of("/var/lib/mysql", "rw,size=512m"));
 
     @Test void upgradesV1PreservingUuidsCouriersShipmentsAndEveryHistoryColumn() throws Exception {
         Flyway.configure().dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())

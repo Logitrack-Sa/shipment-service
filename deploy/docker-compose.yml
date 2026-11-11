@@ -1,0 +1,200 @@
+# Sprint 3: seis aplicaciones y tres MySQL; imagenes locales o publicadas por version.
+x-app: &app
+  restart: unless-stopped
+  user: '10001:10001'
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: [/tmp]
+  healthcheck:
+    test: [CMD, bash, -ec, "exec 3<>/dev/tcp/127.0.0.1/$$SERVER_PORT; printf 'GET /actuator/health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3; read -r status <&3; [[ $$status == *' 200 '* ]]"]
+    interval: 10s
+    timeout: 5s
+    start_period: 90s
+    retries: 30
+x-db: &db
+  image: mysql:8.4@sha256:76f0358884cb92d9a086d24e5671c38048d3fef40f2588703d73eb55392d6b69
+  restart: unless-stopped
+  healthcheck:
+    test: [CMD-SHELL, "MYSQL_PWD=$$MYSQL_PASSWORD mysql --protocol=tcp -h 127.0.0.1 -u$$MYSQL_USER -D$$MYSQL_DATABASE -e 'SELECT 1'"]
+    interval: 5s
+    timeout: 5s
+    start_period: 180s
+    retries: 60
+services:
+  shipment-db:
+    <<: *db
+    environment:
+      MYSQL_DATABASE: shipment_db
+      MYSQL_USER: shipment_user
+      MYSQL_PASSWORD: ${SHIPMENT_DB_PASSWORD:?Definir SHIPMENT_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${SHIPMENT_DB_ROOT_PASSWORD:?Definir SHIPMENT_DB_ROOT_PASSWORD}
+    volumes: [shipment-data:/var/lib/mysql]
+    networks: [shipment-storage]
+  courier-db:
+    <<: *db
+    environment:
+      MYSQL_DATABASE: courier_db
+      MYSQL_USER: courier_user
+      MYSQL_PASSWORD: ${COURIER_DB_PASSWORD:?Definir COURIER_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${COURIER_DB_ROOT_PASSWORD:?Definir COURIER_DB_ROOT_PASSWORD}
+    volumes: [courier-data:/var/lib/mysql]
+    networks: [courier-storage]
+  security-db:
+    <<: *db
+    environment:
+      MYSQL_DATABASE: security_db
+      MYSQL_USER: security_user
+      MYSQL_PASSWORD: ${SECURITY_DB_PASSWORD:?Definir SECURITY_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${SECURITY_DB_ROOT_PASSWORD:?Definir SECURITY_DB_ROOT_PASSWORD}
+    volumes: [security-data:/var/lib/mysql]
+    networks: [security-storage]
+  config-server:
+    <<: *app
+    image: ${CONFIG_SERVER_IMAGE:-alexxe576/logitrack-config-server:sprint2-20261026.1@sha256:1e7c69b2bbfd76fe53a430daecf1943b28680cd16b63ab498f1da20024deecba}
+    healthcheck:
+      test: [CMD, bash, -ec, "exec 3<>/dev/tcp/127.0.0.1/8888; printf 'GET /eureka-server/default HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3; read -r status <&3; [[ $$status == *' 200 '* ]]"]
+      interval: 10s
+      timeout: 5s
+      start_period: 90s
+      retries: 30
+    ports: ['127.0.0.1:8888:8888']
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: '8888'
+      CONFIG_GIT_URI: https://github.com/Logitrack-Sa/config-repo.git
+      CONFIG_GIT_LABEL: ${CONFIG_GIT_LABEL:?Definir revisión Git de configuración}
+    networks: [backend]
+  security-service:
+    <<: *app
+    image: ${SECURITY_IMAGE:-logitrack-security-service:sprint3-local}
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: '8083'
+      SPRING_PROFILES_ACTIVE: prod,sprint3
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_SERVER_URL: http://eureka-server:8065/eureka/
+      EUREKA_CLIENT_ENABLED: 'true'
+      SERVICE_HOST: security-service
+      DB_URL: jdbc:mysql://security-db:3306/security_db?sslMode=REQUIRED&serverTimezone=UTC
+      DB_USERNAME: security_user
+      DB_PASSWORD: ${SECURITY_DB_PASSWORD:?}
+      JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      JWT_KEY_ID: ${JWT_KEY_ID:?}
+      JWT_ISSUER: ${JWT_ISSUER:?}
+      JWT_AUDIENCE: security-service
+      JWT_AUDIENCES: security-service,courier-service,shipment-service
+      JWT_TTL: ${JWT_TTL:?}
+      SECURITY_ADMIN_ENABLED: 'true'
+      SECURITY_ADMIN_USERNAME: ${SECURITY_ADMIN_USERNAME:?}
+      SECURITY_ADMIN_EMAIL: ${SECURITY_ADMIN_EMAIL:?}
+      SECURITY_ADMIN_PASSWORD: ${SECURITY_ADMIN_PASSWORD:?}
+    secrets:
+      - {source: jwt-private, target: jwt-private.pem}
+      - {source: jwt-public, target: jwt-public.pem}
+    depends_on:
+      config-server: {condition: service_healthy}
+      eureka-server: {condition: service_healthy}
+      security-db: {condition: service_healthy}
+    networks: [backend, security-storage]
+  courier-service:
+    <<: *app
+    image: ${COURIER_IMAGE:-logitrack-courier-service:sprint3-local}
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: '8082'
+      SPRING_PROFILES_ACTIVE: prod,sprint3
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_SERVER_URL: http://eureka-server:8065/eureka/
+      EUREKA_CLIENT_ENABLED: 'true'
+      SERVICE_HOST: courier-service
+      DB_URL: jdbc:mysql://courier-db:3306/courier_db?sslMode=REQUIRED&serverTimezone=UTC
+      DB_USERNAME: courier_user
+      DB_PASSWORD: ${COURIER_DB_PASSWORD:?}
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      JWT_KEY_ID: ${JWT_KEY_ID:?}
+      JWT_ISSUER: ${JWT_ISSUER:?}
+      JWT_AUDIENCE: courier-service
+    secrets: [{source: jwt-public, target: jwt-public.pem}]
+    depends_on:
+      config-server: {condition: service_healthy}
+      eureka-server: {condition: service_healthy}
+      courier-db: {condition: service_healthy}
+    networks: [backend, courier-storage]
+  shipment-service:
+    <<: *app
+    image: ${SHIPMENT_IMAGE:-logitrack-shipment-service:sprint3-local}
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: '8081'
+      SPRING_PROFILES_ACTIVE: prod,sprint3
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_SERVER_URL: http://eureka-server:8065/eureka/
+      EUREKA_CLIENT_ENABLED: 'true'
+      SERVICE_HOST: shipment-service
+      DB_URL: jdbc:mysql://shipment-db:3306/shipment_db?sslMode=REQUIRED&serverTimezone=UTC
+      DB_USERNAME: shipment_user
+      DB_PASSWORD: ${SHIPMENT_DB_PASSWORD:?}
+      COURIER_SERVICE_URL: ''
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      JWT_KEY_ID: ${JWT_KEY_ID:?}
+      JWT_ISSUER: ${JWT_ISSUER:?}
+      JWT_AUDIENCE: shipment-service
+      FEE_BASE: '1000.00'
+      FEE_PRICE_PER_KG: '250.00'
+      FEE_VOLUMETRIC_DIVISOR: '5000'
+    secrets: [{source: jwt-public, target: jwt-public.pem}]
+    depends_on:
+      config-server: {condition: service_healthy}
+      eureka-server: {condition: service_healthy}
+      shipment-db: {condition: service_healthy}
+      courier-service: {condition: service_healthy}
+    networks: [backend, shipment-storage]
+  eureka-server:
+    <<: *app
+    image: ${EUREKA_IMAGE:-logitrack-eureka-server:sprint3-local}
+    ports: ['127.0.0.1:8065:8065']
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: '8065'
+      SPRING_PROFILES_ACTIVE: prod
+      CONFIG_SERVER_URL: http://config-server:8888
+      SERVICE_HOST: eureka-server
+    depends_on:
+      config-server: {condition: service_healthy}
+    networks: [backend]
+  api-gateway:
+    <<: *app
+    image: ${GATEWAY_IMAGE:-logitrack-api-gateway:sprint3-local}
+    ports: ['127.0.0.1:${GATEWAY_PORT:-8066}:8080']
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: '8080'
+      SPRING_PROFILES_ACTIVE: prod,sprint3
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_SERVER_URL: http://eureka-server:8065/eureka/
+      EUREKA_CLIENT_ENABLED: 'true'
+      SERVICE_HOST: api-gateway
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      JWT_KEY_ID: ${JWT_KEY_ID:?}
+      JWT_ISSUER: ${JWT_ISSUER:?}
+      JWT_AUDIENCES: security-service,courier-service,shipment-service
+    secrets: [{source: jwt-public, target: jwt-public.pem}]
+    depends_on:
+      eureka-server: {condition: service_healthy}
+      security-service: {condition: service_healthy}
+      courier-service: {condition: service_healthy}
+      shipment-service: {condition: service_healthy}
+    networks: [backend]
+secrets:
+  jwt-private: {file: '${JWT_PRIVATE_KEY_FILE:?Definir JWT_PRIVATE_KEY_FILE}'}
+  jwt-public: {file: '${JWT_PUBLIC_KEY_FILE:?Definir JWT_PUBLIC_KEY_FILE}'}
+volumes:
+  shipment-data:
+  courier-data:
+  security-data:
+networks:
+  backend:
+  shipment-storage: {internal: true}
+  courier-storage: {internal: true}
+  security-storage: {internal: true}
